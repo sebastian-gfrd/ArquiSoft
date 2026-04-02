@@ -1,0 +1,47 @@
+trigger:
+- master
+
+variables:
+  awsServiceConnection: 'Images administrator (ECR/ECS)'
+  region: 'us-east-1'
+  repositoryName: 'arquisoft-proyecto1-mainapp-container'
+  clusterName: 'arquisoft-proyecto1-mainapp-cluster'
+  serviceName: 'arquisoft-proyecto1-mainapp-service'
+
+stages:
+- stage: BuildAndPush
+  displayName: 'Build and Push to ECR'
+  jobs: 
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # Este bloque construye la imagen y la sube a Amazon ECR
+    - task: ECRPushImage@1
+      displayName: 'Push Image to Amazon ECR'
+      inputs:
+        awsCredentials: $(awsServiceConnection)
+        regionName: 'us-east-1'
+        imageSource: 'imagename'
+        sourceImageName: 'Dockerfile'
+        repositoryName: $(repositoryName)
+        pushTag: '$(Build.BuildId)'
+
+- stage: Deploy
+  displayName: 'Deploy to AWS Fargate'
+  dependsOn: BuildAndPush
+  condition: succeeded()
+  jobs:
+  - job: UpdateService
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # Este bloque avisa a Fargate que hay una nueva imagen disponible
+    - task: AWSCLI@1
+      displayName: 'Update Fargate Service via CLI'
+      inputs:
+        awsCredentials: $(awsServiceConnection)
+        regionName: 'us-east-1'
+        awsCommand: 'ecs'
+        awsSubcommand: 'update-service'
+        awsArguments: '--cluster $(clusterName) --service $(serviceName) --force-new-deployment'
