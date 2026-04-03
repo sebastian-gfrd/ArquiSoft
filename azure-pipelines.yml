@@ -14,7 +14,7 @@ stages:
   jobs: 
   - job: Build
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'AWS-Pipeline-MV-Executerr'
     steps:
     # Este bloque construye la imagen y la sube a Amazon ECR
     - task: ECRPushImage@1
@@ -34,7 +34,7 @@ stages:
   jobs:
   - job: UpdateService
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'AWS-Pipeline-MV-Executer'
     steps:
     # Este bloque avisa a Fargate que hay una nueva imagen disponible
     - task: AWSCLI@1
