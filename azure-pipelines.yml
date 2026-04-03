@@ -6,7 +6,7 @@ variables:
   region: 'us-east-1'
   repositoryName: 'arquisoft-proyecto1-mainapp-container'
   clusterName: 'arquisoft-proyecto1-mainapp-cluster'
-  serviceName: 'arquisoft-proyecto1-mainapp-service'
+  serviceName: 'arquisoft-proyecto1-mainapp-task-service'
 
 pool:
   name: 'Default' # Tu máquina personal
