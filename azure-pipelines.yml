@@ -18,6 +18,9 @@ stages:
     steps:
     # Este bloque construye la imagen y la sube a Amazon ECR
     - task: ECRPushImage@1
+      env:
+        AWS_ACCESS_KEY_ID: $(access_key)
+        AWS_SECRET_ACCESS_KEY: $(secret_key)
       displayName: 'Push Image to Amazon ECR'
       inputs:
         awsCredentials: $(awsServiceConnection)
@@ -38,6 +41,9 @@ stages:
     steps:
     # Este bloque avisa a Fargate que hay una nueva imagen disponible
     - task: AWSCLI@1
+      env:
+        AWS_ACCESS_KEY_ID: $(access_key)
+        AWS_SECRET_ACCESS_KEY: $(secret_key)
       displayName: 'Update Fargate Service via CLI'
       inputs:
         awsCredentials: $(awsServiceConnection)
