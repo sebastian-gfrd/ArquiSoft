@@ -8,40 +8,35 @@ variables:
   clusterName: 'arquisoft-proyecto1-mainapp-cluster'
   serviceName: 'arquisoft-proyecto1-mainapp-service'
 
-stages:
-- stage: BuildAndPush
-  displayName: 'Build and Push to ECR'
-  jobs: 
-  - job: Build
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    # Este bloque construye la imagen y la sube a Amazon ECR
-    - task: ECRPushImage@1
-      displayName: 'Push Image to Amazon ECR'
-      inputs:
-        awsCredentials: $(awsServiceConnection)
-        regionName: 'us-east-1'
-        imageSource: 'imagename'
-        sourceImageName: 'Dockerfile'
-        repositoryName: $(repositoryName)
-        pushTag: '$(Build.BuildId)'
+pool:
+  name: 'Default' # Tu máquina personal
 
-- stage: Deploy
-  displayName: 'Deploy to AWS Fargate'
-  dependsOn: BuildAndPush
-  condition: succeeded()
-  jobs:
-  - job: UpdateService
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    # Este bloque avisa a Fargate que hay una nueva imagen disponible
-    - task: AWSCLI@1
-      displayName: 'Update Fargate Service via CLI'
-      inputs:
-        awsCredentials: $(awsServiceConnection)
-        regionName: 'us-east-1'
-        awsCommand: 'ecs'
-        awsSubcommand: 'update-service'
-        awsArguments: '--cluster $(clusterName) --service $(serviceName) --force-new-deployment'
+jobs:
+- job: BuildAndDeploy
+  steps:
+  # PASO 1: Construir la imagen localmente (Docker nativo)
+  - script: |
+      docker build -t $(repositoryName):latest .
+    displayName: 'Docker Build'
+
+  # PASO 2: Push a ECR (Siguiendo la documentación oficial)
+  - task: ECRPushImage@1
+    displayName: 'Push Image to Amazon ECR'
+    inputs:
+      awsCredentials: $(awsServiceConnection)
+      regionName: 'us-east-1'
+      imageSource: 'imagename' # Único valor válido según la doc
+      sourceImageName: $(repositoryName)
+      sourceImageTag: 'latest'
+      repositoryName: $(repositoryName)
+      pushTag: 'latest' # El tag que quedará en AWS
+
+  # PASO 3: Actualizar Fargate
+  - task: AWSCLI@1
+    displayName: 'Update Fargate Service'
+    inputs:
+      awsCredentials: $(awsServiceConnection)
+      regionName: 'us-east-1'
+      awsCommand: 'ecs'
+      awsSubcommand: 'update-service'
+      awsArguments: '--cluster $(clusterName) --service $(serviceName) --force-new-deployment'
