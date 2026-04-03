@@ -23,7 +23,7 @@ stages:
         awsCredentials: $(awsServiceConnection)
         regionName: 'us-east-1'
         imageSource: 'imagename'
-        sourceImageName: 'Dockerfile'
+        sourceImageName: '/Dockerfile'
         repositoryName: $(repositoryName)
         pushTag: '$(Build.BuildId)'
 
@@ -45,3 +45,5 @@ stages:
         awsCommand: 'ecs'
         awsSubcommand: 'update-service'
         awsArguments: '--cluster $(clusterName) --service $(serviceName) --force-new-deployment'
+
+
