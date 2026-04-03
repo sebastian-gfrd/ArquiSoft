@@ -29,7 +29,7 @@ jobs:
       sourceImageName: $(repositoryName)
       sourceImageTag: 'latest'
       repositoryName: $(repositoryName)
-      pushTag: '$(Build.BuildId)' # El tag que quedará en AWS
+      pushTag: 'latest' # El tag que quedará en AWS
 
   # PASO 3: Actualizar Fargate
   - task: AWSCLI@1
