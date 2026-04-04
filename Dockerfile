@@ -20,4 +20,4 @@ COPY App_Web/ .
 # 5. Verificamos que App_Web.wsgi esté bien direccionado.
 # Como ya estamos dentro de lo que era "App_Web", el archivo wsgi.py 
 # debería estar en la subcarpeta interna llamada también App_Web.
-CMD ["gunicorn", "App_Web.wsgi:application", "--bind", "0.0.0.0:8080"]
+CMD ["gunicorn", "App_Web.wsgi:application", "--bind", "0.0.0.0:8080", "--timeout", "90", "--workers", "3"]
