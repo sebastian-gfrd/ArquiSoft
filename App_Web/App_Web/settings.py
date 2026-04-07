@@ -78,7 +78,18 @@ WSGI_APPLICATION = 'App_Web.wsgi.application'
 
 # Database
 # Local: SQLite. AWS: PostgreSQL (RDS o Aurora) vía variables POSTGRES_*.
+_pg = {
+    "ENGINE": "django.db.backends.postgresql",
+    "NAME": "postgres",
+    "USER": "postgres",
+    "PASSWORD": "password",
+    "HOST": "172.31.74.113d",
+    "PORT": "5432",
+    "CONN_MAX_AGE": 600,
+}
+DATABASES = {"default": _pg}
 
+'''
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "").strip()
 if POSTGRES_HOST:
     _pg: dict = {
@@ -103,7 +114,7 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
+'''
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
