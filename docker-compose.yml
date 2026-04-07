@@ -14,11 +14,11 @@ services:
     build: .
     command: >
       sh -c "python manage.py migrate &&
-             gunicorn App_Web.wsgi:application --bind 0.0.0.0:8080 --workers 4 --threads 2"
+             gunicorn App_Web.wsgi:application --bind 0.0.0.0:80 --workers 4 --threads 2"
     volumes:
       - .:/App_Web
     ports:
-      - "8080:8080"
+      - "80:80"
     environment:
       - DATABASE_URL=postgres://sebastian:mi_password_seguro@db:5432/arquitectura_db
       - DEBUG=True

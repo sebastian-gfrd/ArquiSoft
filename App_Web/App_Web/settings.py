@@ -83,7 +83,7 @@ _pg = {
     "NAME": "postgres",
     "USER": "postgres",
     "PASSWORD": "password",
-    "HOST": "172.31.74.113",
+    "HOST": "32.193.3.151",
     "PORT": "5432",
     "CONN_MAX_AGE": 600,
 }
