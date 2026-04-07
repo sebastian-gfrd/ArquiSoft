@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -90,6 +91,17 @@ def agregar_montos(
     area: Area | None,
     proyecto: Proyecto | None,
 ) -> tuple[Decimal | None, dict[str, Any]]:
+    # -- Cache para Escalabilidad (Evita Thundering Herd en mes en curso) --
+    es_mes_actual = mes_en_curso(anio, mes)
+    cache_key = None
+    if es_mes_actual:
+        area_id = area.id if area else "none"
+        proj_id = proyecto.id if proyecto else "none"
+        cache_key = f"report_total_{empresa.id}_{anio}_{mes}_{alcance}_{area_id}_{proj_id}"
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return Decimal(cached_result[0]), cached_result[1]
+
     qs = _costos_filtrados(empresa, anio, mes, alcance, area, proyecto)
     agg = qs.aggregate(total=Sum("monto"))
     total = agg["total"]
@@ -104,6 +116,11 @@ def agregar_montos(
         "por_divisa": por_divisa,
         "registros_costo": qs.count(),
     }
+
+    if cache_key:
+        # Cache por 5 minutos para el mes en curso (balance entre rapidez y frescura)
+        cache.set(cache_key, (str(total_dec), desglose), timeout=300)
+
     return total_dec, desglose
 
 
