@@ -7,14 +7,27 @@ En AWS (Fargate + ALB) defina variables de entorno; ver docs/DESPLIEGUE_AWS.md.
 import os
 from pathlib import Path
 
+import environ
+
+# Setup environ
+env = environ.Env(
+    DJANGO_DEBUG=(bool, True),
+    DJANGO_ALLOWED_HOSTS=(list, ["*"]),
+)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Read .env file if it exists
+env_file = BASE_DIR / ".env"
+if env_file.exists():
+    environ.Env.read_env(str(env_file))
+
 _DEFAULT_SECRET = "django-insecure-#77&k++v*!p=ax@w(t083zq=4#)1ds(-k@taoehf7tgy01-36x"
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", _DEFAULT_SECRET)
+SECRET_KEY = env("DJANGO_SECRET_KEY", default=_DEFAULT_SECRET)
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
+DEBUG = env("DJANGO_DEBUG")
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 
 # Application definition
@@ -106,7 +119,7 @@ if POSTGRES_HOST:
         _pg["OPTIONS"] = {
             "sslmode": os.environ.get("POSTGRES_SSLMODE", "require").strip(),
         }
-    DATABASES = {"default": _pg}
+    }
 else:
     DATABASES = {
         "default": {
@@ -114,7 +127,27 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-'''
+
+# Cache config (Redis/ElastiCache)
+# Use REDIS_URL=redis://host:port/0
+if env("REDIS_URL", default=None):
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": env("REDIS_URL"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "CONNECTION_POOL_KWARGS": {"max_connections": 100},
+            },
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -150,7 +183,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "default": {

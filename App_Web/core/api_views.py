@@ -1,5 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
+from django.core.cache import cache
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -91,18 +92,33 @@ class RecursosInfrautilizadosView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        qs = queryset_recursos_infrautilizados(empresa_id, umbral_dec)
-        recursos = list(qs)
-        serializer = RecursoInfrautilizadoSerializer(recursos, many=True)
         umbral_usado = (
             umbral_dec
             if umbral_dec is not None
             else DEFAULT_UMBRAL_INFRAUTILIZADO_PCT
         )
-        return Response(
-            {
-                "umbral_pct": str(umbral_usado),
-                "total": len(recursos),
-                "recursos": serializer.data,
-            }
-        )
+
+        # -- Lógica de Caché para Escalabilidad (ASR < 100ms) --
+        # Normalizamos a 2 decimales para que la clave sea consistente
+        umbral_key = f"{umbral_usado:.2f}"
+        cache_key = f"infra_recursos_{empresa_id}_{umbral_key}"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return Response(cached_data)
+
+        # Si no hay caché, consultar BD
+        qs = queryset_recursos_infrautilizados(empresa_id, umbral_dec)
+        recursos = list(qs)
+        serializer = RecursoInfrautilizadoSerializer(recursos, many=True)
+
+        response_data = {
+            "umbral_pct": str(umbral_usado),
+            "total": len(recursos),
+            "recursos": serializer.data,
+            "cached": False, # Indica que esta respuesta vino directamente de la BD
+        }
+
+        # Guardar en caché por 60 segundos
+        cache.set(cache_key, {**response_data, "cached": True}, timeout=60)
+
+        return Response(response_data)

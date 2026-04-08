@@ -526,6 +526,7 @@ class Costo(models.Model):
         verbose_name_plural = "Costos"
         indexes = [
             models.Index(fields=["area"]),
+            models.Index(fields=["area", "fecha"]),
         ]
 
     def __str__(self) -> str:
