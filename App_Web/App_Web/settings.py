@@ -127,7 +127,7 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
+'''
 # Cache config (Redis/ElastiCache)
 # Use REDIS_URL=redis://host:port/0
 if env("REDIS_URL", default=None):
