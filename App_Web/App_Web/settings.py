@@ -91,44 +91,11 @@ WSGI_APPLICATION = 'App_Web.wsgi.application'
 
 
 # Database
-# Local: SQLite. AWS: PostgreSQL (RDS o Aurora) vía variables POSTGRES_*.
-_pg = {
-    "ENGINE": "django.db.backends.postgresql",
-    "NAME": "postgres",
-    "USER": "postgres",
-    "PASSWORD": "postgres",
-    "HOST": "arquisoft-db-aurora.cluster-c69qigesu9to.us-east-1.rds.amazonaws.com",
-    "PORT": "5432",
-    "CONN_MAX_AGE": 600,
+# Local: lee DATABASE_URL del archivo .env. AWS: lee DATABASE_URL del entorno de ECS/Fargate.
+DATABASES = {
+    'default': env.db('DATABASE_URL', default='sqlite:///db.sqlite3')
 }
-DATABASES = {"default": _pg}
 
-'''
-POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "").strip()
-if POSTGRES_HOST:
-    _pg: dict = {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "bite_co"),
-        "USER": os.environ.get("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-        "HOST": POSTGRES_HOST,
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": int(os.environ.get("POSTGRES_CONN_MAX_AGE", "60")),
-    }
-    # RDS suele exigir SSL; `require` sin verificar cert (laboratorio). Producción: verify-full + CA.
-    if os.environ.get("POSTGRES_SSLMODE", "require").strip():
-        _pg["OPTIONS"] = {
-            "sslmode": os.environ.get("POSTGRES_SSLMODE", "require").strip(),
-        }
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
-'''
 # Cache config (Redis/ElastiCache)
 # - Producción (AWS Cluster Mode Enabled): Usar REDIS_URL=redis://host:6379 (SIN el /0 final).
 # - Local / Standalone: Usar REDIS_URL=redis://host:6379/1
@@ -139,8 +106,13 @@ if env("REDIS_URL", default=None):
             "LOCATION": env("REDIS_URL"),
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
-                "CONNECTION_POOL_KWARGS": {"max_connections": 100},
-                # IGNORE_EXCEPTIONS evita el error 'SELECT is not allowed in cluster mode'
+                "CONNECTION_POOL_KWARGS": {
+                    "max_connections": 100,
+                    "retry_on_timeout": True,
+                },
+                # Forzar fallo rápido (en 2 seg) si Redis no responde
+                "SOCKET_TIMEOUT": 2,
+                "SOCKET_CONNECT_TIMEOUT": 2,
                 "IGNORE_EXCEPTIONS": True,
             },
         }
