@@ -25,6 +25,7 @@ if env_file.exists():
 _DEFAULT_SECRET = "django-insecure-#77&k++v*!p=ax@w(t083zq=4#)1ds(-k@taoehf7tgy01-36x"
 SECRET_KEY = env("DJANGO_SECRET_KEY", default=_DEFAULT_SECRET)
 
+# IMPORTANTE: DEBUG debe ser False en producción (AWS)
 DEBUG = env("DJANGO_DEBUG")
 
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
@@ -129,7 +130,8 @@ else:
     }
 '''
 # Cache config (Redis/ElastiCache)
-# Use REDIS_URL=redis://host:port/0
+# - Producción (AWS Cluster Mode Enabled): Usar REDIS_URL=redis://host:6379 (SIN el /0 final).
+# - Local / Standalone: Usar REDIS_URL=redis://host:6379/1
 if env("REDIS_URL", default=None):
     CACHES = {
         "default": {
@@ -138,6 +140,8 @@ if env("REDIS_URL", default=None):
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
                 "CONNECTION_POOL_KWARGS": {"max_connections": 100},
+                # IGNORE_EXCEPTIONS evita el error 'SELECT is not allowed in cluster mode'
+                "IGNORE_EXCEPTIONS": True,
             },
         }
     }

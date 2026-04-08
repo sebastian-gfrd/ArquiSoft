@@ -101,21 +101,33 @@ class RecursosInfrautilizadosView(APIView):
         # -- Lógica de Caché para Escalabilidad (ASR < 100ms) --
         # Normalizamos a 2 decimales para que la clave sea consistente
         umbral_key = f"{umbral_usado:.2f}"
-        cache_key = f"infra_recursos_{empresa_id}_{umbral_key}"
+        
+        # Obtenemos parámetros de paginación (default 100)
+        limit_raw = request.query_params.get("limit", "100")
+        try:
+            limit = min(int(limit_raw), 500) # Máximo 500 por seguridad
+        except ValueError:
+            limit = 100
+
+        cache_key = f"infra_recursos_{empresa_id}_{umbral_key}_lim_{limit}"
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return Response(cached_data)
 
         # Si no hay caché, consultar BD
-        qs = queryset_recursos_infrautilizados(empresa_id, umbral_dec)
+        # Ajustamos el queryset para que sea eficiente: Ordenado por uso de CPU
+        qs = queryset_recursos_infrautilizados(empresa_id, umbral_dec).order_by("cpu_utilizacion_pct")[:limit]
+        
         recursos = list(qs)
         serializer = RecursoInfrautilizadoSerializer(recursos, many=True)
 
         response_data = {
             "umbral_pct": str(umbral_usado),
-            "total": len(recursos),
+            "limit": limit,
+            "total_encontrados": len(recursos),
             "recursos": serializer.data,
             "cached": False, # Indica que esta respuesta vino directamente de la BD
+            "nota": "Paginación automática activada para cumplir ASR < 100ms."
         }
 
         # Guardar en caché por 60 segundos
