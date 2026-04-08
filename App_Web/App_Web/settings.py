@@ -82,8 +82,8 @@ _pg = {
     "ENGINE": "django.db.backends.postgresql",
     "NAME": "postgres",
     "USER": "postgres",
-    "PASSWORD": "password",
-    "HOST": "32.193.3.151",
+    "PASSWORD": "postgres",
+    "HOST": "arquisoft-db-aurora.cluster-c69qigesu9to.us-east-1.rds.amazonaws.com",
     "PORT": "5432",
     "CONN_MAX_AGE": 600,
 }
