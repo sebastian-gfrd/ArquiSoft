@@ -21,9 +21,6 @@ from .serializers import (
 class SolicitudReporteListCreateView(generics.ListCreateAPIView):
     """
     Historial y nuevas solicitudes de reporte mensual (empresa / área / proyecto).
-
-    - Mes en curso: ``periodo_parcial`` indica montos acumulados hasta la fecha.
-    - Meses cerrados ya completados se devuelven desde historial sin regenerar.
     """
 
     permission_classes = []  # Público para la prueba de carga
@@ -78,7 +75,7 @@ class SolicitudReporteListCreateView(generics.ListCreateAPIView):
         if user.is_authenticated and user.is_superuser:
             return qs
             
-        # 2. JMeter Test (Sin logueo): Devolver empresa 1
+        # 2. JMeter Test (Sin logueo): Devolver empresa 1 por defecto
         if not user.is_authenticated:
             return qs.filter(empresa_id=1)
             
@@ -97,9 +94,13 @@ class SolicitudReporteListCreateView(generics.ListCreateAPIView):
         self.perform_create(serializer)
         obj = serializer.instance
         headers = self.get_success_headers(serializer.data)
+        
+        # Respuesta 200 si se reutilizó, 201 si es nuevo
+        status_code = status.HTTP_201_CREATED
         if getattr(obj, "_reutilizado_historial", False):
-            return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            status_code = status.HTTP_200_OK
+            
+        return Response(serializer.data, status=status_code, headers=headers)
 
 
 class RecursosInfrautilizadosView(APIView):
@@ -118,7 +119,6 @@ class RecursosInfrautilizadosView(APIView):
         limit_raw = request.query_params.get("limit", "100")
         page = request.query_params.get("page", 1)
 
-        # Normalización de parámetros para la clave de caché
         try:
             limit = min(int(limit_raw), 500)
         except (ValueError, TypeError):
@@ -129,7 +129,7 @@ class RecursosInfrautilizadosView(APIView):
         cached_data = cache.get(cache_key)
         
         if cached_data:
-            print(f"--- [CACHE HIT] Recursos Infrautilizados (Empresa {empresa_id}, Pg {page}) ---")
+            print(f"--- [CACHE HIT] Recursos Infrautilizados (Empresa {empresa_id}) ---")
             return Response(cached_data)
 
         print(f"--- [CACHE MISS] Consultando base de datos para Empresa {empresa_id}... ---")

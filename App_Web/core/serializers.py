@@ -58,7 +58,6 @@ class SolicitudReporteMensualSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Solo usuarios asociados a una empresa cliente pueden solicitar reportes."
             )
-        # ... resto de la validación se mantiene igual para usuarios reales ...
         return attrs
 
     def create(self, validated_data):
@@ -79,6 +78,7 @@ class SolicitudReporteMensualSerializer(serializers.ModelSerializer):
         area = validated_data.get("area")
         proyecto = validated_data.get("proyecto")
 
+        # Crear la solicitud
         solicitud = SolicitudReporteMensual.objects.create(
             usuario=user,
             empresa=empresa,
@@ -89,6 +89,8 @@ class SolicitudReporteMensualSerializer(serializers.ModelSerializer):
             proyecto=proyecto,
             periodo_parcial=mes_en_curso(anio, mes),
         )
+        
+        # Procesar inmediatamente (Sync para el test de JMeter)
         procesar_solicitud_reporte(solicitud)
         solicitud.refresh_from_db()
         return solicitud
