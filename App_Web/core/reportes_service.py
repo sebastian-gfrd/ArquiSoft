@@ -185,6 +185,6 @@ def buscar_reporte_completado_previo(
         qs = qs.filter(proyecto=proyecto)
     else:
         qs = qs.filter(proyecto__isnull=True)
-    if usuario.rol_cliente == RolCliente.EJECUTIVO_EMPRESA:
+    if not usuario or usuario.is_superuser or usuario.rol_cliente == RolCliente.EJECUTIVO_EMPRESA:
         return qs.order_by("-creado_en").first()
     return qs.filter(usuario=usuario).order_by("-creado_en").first()
