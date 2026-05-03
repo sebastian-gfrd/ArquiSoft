@@ -100,7 +100,7 @@ DATABASES = {
 }
 
 # Cache config (Redis/ElastiCache)
-# - Producción (AWS Cluster Mode Enabled): Usar REDIS_URL=redis://host:6379 (SIN el /0 final).
+# - Producción (AWS Cluster Mode Enabled): Usar REDIS_URL=rediss://host:6379
 # - Local / Standalone: Usar REDIS_URL=redis://host:6379/1
 if env("REDIS_URL", default=None):
     CACHES = {
@@ -112,11 +112,12 @@ if env("REDIS_URL", default=None):
                 "CONNECTION_POOL_KWARGS": {
                     "max_connections": 100,
                     "retry_on_timeout": True,
+                    "ssl_cert_reqs": None,  # Necesario para ElastiCache con TLS
                 },
                 # Forzar fallo rápido (en 2 seg) si Redis no responde
-                "SOCKET_TIMEOUT": 2,
-                "SOCKET_CONNECT_TIMEOUT": 2,
-                "IGNORE_EXCEPTIONS": True,
+                "SOCKET_TIMEOUT": 5,
+                "SOCKET_CONNECT_TIMEOUT": 5,
+                "IGNORE_EXCEPTIONS": False,  # False para ver el error real en logs/browser
             },
         }
     }
