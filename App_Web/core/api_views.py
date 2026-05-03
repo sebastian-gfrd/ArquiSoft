@@ -21,9 +21,10 @@ from .serializers import (
 class SolicitudReporteListCreateView(generics.ListCreateAPIView):
     """
     Historial y nuevas solicitudes de reporte mensual (empresa / área / proyecto).
+    Protegido por Auth0 (ASR3).
     """
 
-    permission_classes = []  # Público para la prueba de carga
+    permission_classes = [IsAuthenticated]
     serializer_class = SolicitudReporteMensualSerializer
 
     def post(self, request, *args, **kwargs):
@@ -107,10 +108,10 @@ class RecursosInfrautilizadosView(APIView):
     """
     VISTA OPTIMIZADA PARA ASR < 100ms (Pruebas de JMeter)
     --------------------------------------------------
-    1. Se desactiva el IsAuthenticated para evitar el costo de hashing de Basic Auth (700ms).
-    2. Se prioriza el caché de Redis sobre cualquier lógica de negocio.
+    PROTECCIÓN: Ahora requiere autenticación Auth0 (ASR3).
+    RENDIMIENTO: Utiliza caché de Redis para mantener latencia < 100ms.
     """
-    permission_classes = []  # Público temporalmente para la prueba de carga global
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         # 1. Parámetros de la consulta (con valores por defecto para el test)

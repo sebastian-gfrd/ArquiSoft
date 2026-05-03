@@ -45,19 +45,31 @@ class SolicitudReporteMensualSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user if request else None
         
-        # Mapeo automático para pruebas de carga si no hay usuario
+        # 1. Validación de Integridad (ASR4)
+        mes = attrs.get("mes")
+        anio = attrs.get("anio")
+        if mes < 1 or mes > 12:
+            raise serializers.ValidationError({"mes": "El mes debe estar entre 1 y 12."})
+        if anio < 2020 or anio > 2030:
+            raise serializers.ValidationError({"anio": "Año fuera de rango permitido."})
+
+        # 2. Mapeo automático para pruebas de carga si no hay usuario
         if not user or user.is_anonymous:
-            # En test, tomamos la primera empresa que exista si la ID 1 falló
             empresa = Empresa.objects.filter(id=1).first() or Empresa.objects.first()
             if not empresa:
-                 raise serializers.ValidationError("No existe ninguna empresa en la base de datos. Ejecute el seed.")
+                 raise serializers.ValidationError("No existe empresa en DB. Ejecute seed.")
             return attrs
 
+        # 3. Validación de Alcance (RBAC/Integridad)
         empresa = user.empresa
-        if empresa is None and not (user.is_staff or user.is_superuser):
-            raise serializers.ValidationError(
-                "Solo usuarios asociados a una empresa cliente pueden solicitar reportes."
-            )
+        area = attrs.get("area")
+        proyecto = attrs.get("proyecto")
+        
+        if area and area.empresa != empresa:
+            raise serializers.ValidationError("El área no pertenece a su empresa.")
+        if proyecto and proyecto.area.empresa != empresa:
+            raise serializers.ValidationError("El proyecto no pertenece a su empresa.")
+
         return attrs
 
     def create(self, validated_data):
