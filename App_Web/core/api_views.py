@@ -24,7 +24,7 @@ class SolicitudReporteListCreateView(generics.ListCreateAPIView):
     Protegido por Auth0 (ASR3).
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = SolicitudReporteMensualSerializer
 
     def post(self, request, *args, **kwargs):
@@ -111,7 +111,7 @@ class RecursosInfrautilizadosView(APIView):
     PROTECCIÓN: Ahora requiere autenticación Auth0 (ASR3).
     RENDIMIENTO: Utiliza caché de Redis para mantener latencia < 100ms.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         # 1. Parámetros de la consulta (con valores por defecto para el test)
