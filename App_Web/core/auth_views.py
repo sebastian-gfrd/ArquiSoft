@@ -46,13 +46,23 @@ def callback(request):
     django_role = ROLE_MAPPING.get(role_from_auth0, "colaborador_limitado")
     
     if email:
+        # Asegurar que existe una empresa para asignar al usuario
+        from .models import Empresa
+        empresa_default = Empresa.objects.filter(id=1).first() or Empresa.objects.first()
+
         user, created = Usuario.objects.get_or_create(
             email=email,
             defaults={
                 "nombre": userinfo.get("name", email),
                 "rol_cliente": django_role,
-            }
+                "empresa": empresa_default  # <--- Esto soluciona el error
+            },
         )
+        
+        # Si el usuario ya existía pero no tiene empresa, se la asignamos
+        if not user.empresa and empresa_default:
+            user.empresa = empresa_default
+            user.save()
         
         # Si el rol cambió en Auth0, lo actualizamos en la DB local
         if not created and user.rol_cliente != django_role:
