@@ -185,10 +185,10 @@ CORS_ALLOW_ALL_ORIGINS = True  # Ajustar en producción real a dominios específ
 # Forzar HTTPS si estamos en producción (DEBUG=False)
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
