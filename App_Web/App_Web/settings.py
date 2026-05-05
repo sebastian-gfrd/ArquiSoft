@@ -195,3 +195,16 @@ if not DEBUG:
 # --- CONFIGURACIÓN AUTH0 ---
 AUTH0_DOMAIN = env("AUTH0_DOMAIN", default="dev-example.auth0.com")
 AUTH0_API_AUDIENCE = env("AUTH0_API_AUDIENCE", default="https://bite-co/api")
+AUTH0_CLIENT_ID = env("AUTH0_CLIENT_ID", default="")
+AUTH0_CLIENT_SECRET = env("AUTH0_CLIENT_SECRET", default="")
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'core.auth0_utils.Auth0JSONWebTokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+}
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
