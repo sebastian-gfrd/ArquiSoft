@@ -1,7 +1,11 @@
 import time
 from django.db import connection
 from django.core.cache import cache
+from django.shortcuts import render
 from django.http import JsonResponse
+
+def index(request):
+    return render(request, "core/index.html")
 
 def health(request):
     """

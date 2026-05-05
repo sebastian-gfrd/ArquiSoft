@@ -1,22 +1,11 @@
 from django.urls import path
 from django.http import JsonResponse
 from .api_views import RecursosInfrautilizadosView, SolicitudReporteListCreateView
-from .views import health
+from .views import health, index
 from . import auth_views
 
-def api_index(request):
-    return JsonResponse({
-        "mensaje": "Bienvenido a la API de BITE.co - Despliegue AWS",
-        "endpoints_disponibles": {
-            "Desempeño (Recursos)": "/api/v1/analisis/recursos-infrautilizados/",
-            "Escalabilidad (Reportes)": "/api/v1/reportes/mensuales/",
-            "Admin": "/admin/",
-            "Salud": "/health/"
-        }
-    })
-
 urlpatterns = [
-    path("", api_index, name="api-index"),  # <--- Esta es la nueva línea
+    path("", index, name="api-index"),
     path("health/", health, name="health"),
     path("login/", auth_views.login, name="login"),
     path("callback/", auth_views.callback, name="callback"),

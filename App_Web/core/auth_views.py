@@ -23,7 +23,9 @@ oauth.register(
 
 def login(request):
     return oauth.auth0.authorize_redirect(
-        request, request.build_absolute_uri(reverse("callback"))
+        request, 
+        request.build_absolute_uri(reverse("callback")),
+        prompt="login"  # <--- Esto obliga a Auth0 a pedir usuario/contraseña siempre
     )
 
 def callback(request):
