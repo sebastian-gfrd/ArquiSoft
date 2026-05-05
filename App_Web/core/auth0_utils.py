@@ -77,22 +77,21 @@ class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
             scope = payload.get("scope", "").split()
             
             # 5. Vincular con un usuario de la base de datos
-            from core.models import Usuario
             user_email = payload.get("email") or payload.get(f"{settings.AUTH0_API_AUDIENCE}/email")
             
-            if user_email:
-                user, created = Usuario.objects.get_or_create(
-                    email=user_email,
-                    defaults={
-                        "nombre": payload.get("name", user_email),
-                        "rol_cliente": "colaborador_limitado",
-                    }
-                )
-                # Adjuntamos los permisos al objeto usuario para usarlos en la app
-                user.auth0_permissions = permissions + scope
-                return (user, token)
+            # Fallback para Machine-to-Machine (M2M) tokens o pruebas de carga
+            if not user_email:
+                user_email = f"m2m_{payload.get('sub')}"
             
-            # Fallback si no hay email en el token
-            raise exceptions.AuthenticationFailed("El token de Auth0 no contiene un email válido.")
+            user, created = Usuario.objects.get_or_create(
+                email=user_email,
+                defaults={
+                    "nombre": payload.get("name", user_email),
+                    "rol_cliente": "colaborador_limitado",
+                }
+            )
+            # Adjuntamos los permisos al objeto usuario para usarlos en la app
+            user.auth0_permissions = permissions + scope
+            return (user, token)
 
         raise exceptions.AuthenticationFailed("No se pudo encontrar la clave pública adecuada.")
