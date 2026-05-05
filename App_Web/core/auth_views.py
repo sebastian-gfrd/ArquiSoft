@@ -33,12 +33,11 @@ def callback(request):
     # Extraer el email y el rol del app_metadata (vía claims personalizados)
     email = userinfo.get("email")
     
-    # Mapeo de roles de Auth0 (metadata) a Django (RolCliente)
+    # Mapeo oficial para la entrega de BITE.co
     ROLE_MAPPING = {
-        "supervisor": "responsable_area",
-        "admin": "ejecutivo_empresa",
-        "ejecutivo": "ejecutivo_empresa",
-        "colaborador": "colaborador_limitado",
+        "administrador global": "ejecutivo_empresa",
+        "gestor de proyecto": "responsable_proyecto",
+        "analista de costos": "colaborador_limitado",
     }
     
     role_from_auth0 = (userinfo.get("https://bite-co/role") or userinfo.get("role") or "colaborador").lower()

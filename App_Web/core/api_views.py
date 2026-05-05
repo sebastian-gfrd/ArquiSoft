@@ -112,8 +112,19 @@ class RecursosInfrautilizadosView(APIView):
     RENDIMIENTO: Utiliza caché de Redis para mantener latencia < 100ms.
     """
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request, *args, **kwargs):
+        # 0. VALIDACIÓN DE ROL (ASR de Seguridad)
+        # El 'Analista de Costos' mapea a 'colaborador_limitado'
+        if request.user.rol_cliente == RolCliente.COLABORADOR_LIMITADO:
+            return Response(
+                {
+                    "error": "Acceso Denegado",
+                    "detalle": "Tu rol de 'Analista de Costos' no tiene permisos para ver el análisis de infraestructura. Contacta a un Administrador Global."
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # 1. Parámetros de la consulta (con valores por defecto para el test)
         empresa_id = request.query_params.get("empresa_id", 1)
         umbral_raw = request.query_params.get("umbral_pct")
