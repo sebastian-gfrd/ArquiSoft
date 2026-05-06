@@ -152,7 +152,13 @@ class RecursosInfrautilizadosView(APIView):
             try:
                 umbral_usado = Decimal(umbral_raw)
             except InvalidOperation:
-                pass
+                return Response(
+                    {
+                        "error": "Petición Malformada o Intento de Inyección detectado",
+                        "detalle": f"El valor '{umbral_raw}' no es un parámetro numérico válido. La integridad de la consulta ha sido protegida."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Consulta optimizada
         qs = queryset_recursos_infrautilizados(empresa_id, umbral_usado).order_by("cpu_utilizacion_pct")[:limit]
