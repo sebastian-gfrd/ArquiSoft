@@ -136,17 +136,7 @@ class RecursosInfrautilizadosView(APIView):
         except (ValueError, TypeError):
             limit = 100
 
-        # 2. CLAVE DE CACHÉ (Lo primero que se revisa para velocidad máxima)
-        cache_key = f"infra_v3_emp_{empresa_id}_pg_{page}_lim_{limit}"
-        cached_data = cache.get(cache_key)
-        
-        if cached_data:
-            print(f"--- [CACHE HIT] Recursos Infrautilizados (Empresa {empresa_id}) ---")
-            return Response(cached_data)
-
-        print(f"--- [CACHE MISS] Consultando base de datos para Empresa {empresa_id}... ---")
-
-        # 3. Lógica de Base de Datos (Solo si no está en Redis)
+        # 1. Validación de Seguridad (Detectar Ataques ANTES de ir al caché)
         umbral_usado = DEFAULT_UMBRAL_INFRAUTILIZADO_PCT
         if umbral_raw:
             try:
@@ -159,6 +149,16 @@ class RecursosInfrautilizadosView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+        # 2. Revisar Caché (Redis) - Incluir umbral en la llave
+        cache_key = f"infra_v3_emp_{empresa_id}_u_{umbral_usado}_pg_{page}_lim_{limit}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            print(f"--- [CACHE HIT] Recursos (Umbral: {umbral_usado}) ---")
+            return Response(cached_data)
+
+        print(f"--- [CACHE MISS] Consultando DB para Umbral {umbral_usado}... ---")
 
         # Consulta optimizada
         qs = queryset_recursos_infrautilizados(empresa_id, umbral_usado).order_by("cpu_utilizacion_pct")[:limit]
