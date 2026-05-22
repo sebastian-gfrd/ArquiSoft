@@ -1,178 +1,105 @@
-from decimal import Decimal, InvalidOperation
-
-from django.core.cache import cache
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from .models import Tenant, Project
+from .serializers import TenantSerializer, ProjectSerializer, UserProfileSerializer
+import logging
 
-from .infrautilizados_service import (
-    DEFAULT_UMBRAL_INFRAUTILIZADO_PCT,
-    queryset_recursos_infrautilizados,
-)
-from .models import Area, Empresa, Proyecto, RolCliente, SolicitudReporteMensual
-from .reportes_service import buscar_reporte_completado_previo
-from .serializers import (
-    RecursoInfrautilizadoSerializer,
-    SolicitudReporteMensualSerializer,
-)
+logger = logging.getLogger(__name__)
 
 
-class SolicitudReporteListCreateView(generics.ListCreateAPIView):
+class TenantListCreateView(generics.ListCreateAPIView):
     """
-    Historial y nuevas solicitudes de reporte mensual (empresa / área / proyecto).
-    Protegido por Auth0 (ASR3).
+    Vista para listar y crear Tenants.
+    Implementa seguridad multitenant restringiendo los resultados al Tenant del usuario autenticado.
     """
-
     permission_classes = [IsAuthenticated]
-    serializer_class = SolicitudReporteMensualSerializer
-
-    def post(self, request, *args, **kwargs):
-        """
-        OPTIMIZACIÓN ASR-3: Caché de lectura en POST.
-        Si la solicitud ya fue procesada previamente, devolvemos el resultado de inmediato.
-        """
-        data = request.data
-        anio = data.get("anio")
-        mes = data.get("mes")
-        alcance = data.get("alcance")
-        area_id = data.get("area")
-        proyecto_id = data.get("proyecto")
-
-        if anio and mes and alcance:
-            # 1. Identificar empresa (Mismo logic que el serializer)
-            user = request.user
-            if not user or user.is_anonymous:
-                empresa = Empresa.objects.filter(id=1).first() or Empresa.objects.first()
-            else:
-                empresa = user.empresa
-
-            if empresa:
-                # 2. Buscar si ya existe un reporte listo
-                area = Area.objects.filter(id=area_id).first() if area_id else None
-                proyecto = Proyecto.objects.filter(id=proyecto_id).first() if proyecto_id else None
-                
-                # Mock de usuario para la búsqueda (superuser para que vea todo en el test)
-                from .models import Usuario
-                mock_user = user if user and not user.is_anonymous else Usuario.objects.filter(is_superuser=True).first()
-
-                previo = buscar_reporte_completado_previo(
-                    mock_user, empresa, int(anio), int(mes), alcance, area, proyecto
-                )
-                if previo:
-                    serializer = self.get_serializer(previo)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-
-        # Si no hay previo, procedemos a crear (comportamiento original lento por DB)
-        return self.create(request, *args, **kwargs)
+    serializer_class = TenantSerializer
 
     def get_queryset(self):
         user = self.request.user
-        qs = SolicitudReporteMensual.objects.select_related(
-            "empresa", "area", "proyecto", "usuario"
-        )
         
-        # 1. Superusuario ve todo
-        if user.is_authenticated and user.is_superuser:
-            return qs
-            
-        # 2. JMeter Test (Sin logueo): Devolver empresa 1 por defecto
-        if not user.is_authenticated:
-            return qs.filter(empresa_id=1)
-            
-        # 3. Usuarios reales logueados
-        if not getattr(user, "empresa_id", None):
-            return qs.none()
-            
-        qs = qs.filter(empresa_id=user.empresa_id)
-        if user.rol_cliente == RolCliente.EJECUTIVO_EMPRESA:
-            return qs
-        return qs.filter(usuario=user)
+        # Superusuarios ven todos los Tenants en el sistema
+        if user.is_superuser:
+            return Tenant.objects.all()
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        obj = serializer.instance
-        headers = self.get_success_headers(serializer.data)
-        
-        # Respuesta 200 si se reutilizó, 201 si es nuevo
-        status_code = status.HTTP_201_CREATED
-        if getattr(obj, "_reutilizado_historial", False):
-            status_code = status.HTTP_200_OK
+        # Usuarios estándar solo ven su propio Tenant asociado
+        user_profile = getattr(user, 'profile', None)
+        if not user_profile:
+            return Tenant.objects.none()
             
-        return Response(serializer.data, status=status_code, headers=headers)
+        return Tenant.objects.filter(id=user_profile.tenant.id)
 
 
-class RecursosInfrautilizadosView(APIView):
+class TenantRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     """
-    VISTA OPTIMIZADA PARA ASR < 100ms (Pruebas de JMeter)
-    --------------------------------------------------
-    PROTECCIÓN: Ahora requiere autenticación Auth0 (ASR3).
-    RENDIMIENTO: Utiliza caché de Redis para mantener latencia < 100ms.
+    Vista para ver, actualizar o eliminar un Tenant específico.
+    Garantiza el estricto aislamiento de datos.
     """
     permission_classes = [IsAuthenticated]
-    
-    def get(self, request, *args, **kwargs):
-        # 0. VALIDACIÓN DE ROL (ASR de Seguridad)
-        # El 'Analista de Costos' mapea a 'colaborador_limitado'
-        if request.user.rol_cliente == RolCliente.COLABORADOR_LIMITADO:
-            return Response(
-                {
-                    "error": "Acceso Denegado",
-                    "detalle": "Tu rol de 'Analista de Costos' no tiene permisos para ver el análisis de infraestructura. Contacta a un Administrador Global."
-                },
-                status=status.HTTP_403_FORBIDDEN
-            )
+    serializer_class = TenantSerializer
 
-        # 1. Parámetros de la consulta (con valores por defecto para el test)
-        empresa_id = request.query_params.get("empresa_id", 1)
-        umbral_raw = request.query_params.get("umbral_pct")
-        limit_raw = request.query_params.get("limit", "100")
-        page = request.query_params.get("page", 1)
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Tenant.objects.all()
 
-        try:
-            limit = min(int(limit_raw), 500)
-        except (ValueError, TypeError):
-            limit = 100
+        user_profile = getattr(user, 'profile', None)
+        if not user_profile:
+            return Tenant.objects.none()
+            
+        return Tenant.objects.filter(id=user_profile.tenant.id)
 
-        # 1. Validación de Seguridad (Detectar Ataques ANTES de ir al caché)
-        umbral_usado = DEFAULT_UMBRAL_INFRAUTILIZADO_PCT
-        if umbral_raw:
-            try:
-                umbral_usado = Decimal(umbral_raw)
-            except InvalidOperation:
-                return Response(
-                    {
-                        "error": "Petición Malformada o Intento de Inyección detectado",
-                        "detalle": f"El valor '{umbral_raw}' no es un parámetro numérico válido. La integridad de la consulta ha sido protegida."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
 
-        # 2. Revisar Caché (Redis) - Incluir umbral en la llave
-        cache_key = f"infra_v3_emp_{empresa_id}_u_{umbral_usado}_pg_{page}_lim_{limit}"
-        cached_data = cache.get(cache_key)
+class ProjectListCreateView(generics.ListCreateAPIView):
+    """
+    Vista para listar y crear Proyectos.
+    Implementa seguridad multitenant filtrando proyectos por el Tenant del usuario.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        user = self.request.user
         
-        if cached_data:
-            print(f"--- [CACHE HIT] Recursos (Umbral: {umbral_usado}) ---")
-            return Response(cached_data)
+        # Superusuarios ven todos los proyectos del sistema
+        if user.is_superuser:
+            return Project.objects.all()
 
-        print(f"--- [CACHE MISS] Consultando DB para Umbral {umbral_usado}... ---")
+        # Usuarios estándar solo ven proyectos de su Tenant
+        user_profile = getattr(user, 'profile', None)
+        if not user_profile:
+            return Project.objects.none()
+            
+        return Project.objects.filter(tenant=user_profile.tenant)
 
-        # Consulta optimizada
-        qs = queryset_recursos_infrautilizados(empresa_id, umbral_usado).order_by("cpu_utilizacion_pct")[:limit]
-        recursos = list(qs)
-        serializer = RecursoInfrautilizadoSerializer(recursos, many=True)
+    def perform_create(self, serializer):
+        user = self.request.user
+        
+        # Para usuarios estándar, forzar la asociación al Tenant de su propio perfil organizacional
+        if not user.is_superuser:
+            user_profile = getattr(user, 'profile', None)
+            if user_profile:
+                serializer.save(tenant=user_profile.tenant)
+                return
+        
+        serializer.save()
 
-        response_data = {
-            "total_encontrados": len(recursos),
-            "recursos": serializer.data,
-            "cached": True,
-            "nota": "ASR Optimized"
-        }
 
-        # 4. Guardar en Redis por 10 minutos
-        cache.set(cache_key, response_data, timeout=600)
+class ProjectRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Vista para ver, actualizar o eliminar un Proyecto específico de forma segura.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectSerializer
 
-        return Response(response_data)
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Project.objects.all()
+
+        user_profile = getattr(user, 'profile', None)
+        if not user_profile:
+            return Project.objects.none()
+            
+        return Project.objects.filter(tenant=user_profile.tenant)

@@ -1,23 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-
-from .models import (
-    Acceso,
-    Analisis,
-    Area,
-    Consumo,
-    Costo,
-    Empresa,
-    Metricas,
-    Notificacion,
-    ProveedorCloud,
-    Proyecto,
-    RecursoCloud,
-    Registro,
-    Reporte,
-    SolicitudReporteMensual,
-    Usuario,
-)
+from .models import Usuario, Tenant, Project, UserProfile
 
 
 @admin.register(Usuario)
@@ -26,30 +9,18 @@ class UsuarioAdmin(DjangoUserAdmin):
     list_display = (
         "email",
         "nombre",
-        "rol",
-        "empresa",
-        "rol_cliente",
         "is_staff",
         "is_active",
     )
-    search_fields = ("email", "nombre", "cargo")
+    search_fields = ("email", "nombre")
     filter_horizontal = ("groups", "user_permissions")
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (
-            "Datos BITE.co",
+            "Datos Personales",
             {
-                "fields": (
-                    "nombre",
-                    "cargo",
-                    "rol",
-                    "reporte",
-                    "empresa",
-                    "rol_cliente",
-                    "area_alcance",
-                    "proyecto_alcance",
-                ),
+                "fields": ("nombre",),
             },
         ),
         (
@@ -75,14 +46,7 @@ class UsuarioAdmin(DjangoUserAdmin):
                 "fields": (
                     "email",
                     "nombre",
-                    "password1",
-                    "password2",
-                    "rol",
-                    "cargo",
-                    "empresa",
-                    "rol_cliente",
-                    "area_alcance",
-                    "proyecto_alcance",
+                    "password",
                     "is_staff",
                     "is_superuser",
                 ),
@@ -91,43 +55,22 @@ class UsuarioAdmin(DjangoUserAdmin):
     )
 
 
-@admin.register(Acceso)
-class AccesoAdmin(admin.ModelAdmin):
-    list_display = (
-        "fecha",
-        "tipo_evento",
-        "exitoso",
-        "usuario",
-        "ip_address",
-        "ruta",
-    )
-    list_filter = ("exitoso", "tipo_evento")
-    search_fields = ("detalle", "ruta", "usuario__email")
-admin.site.register(Analisis)
-admin.site.register(Area)
-admin.site.register(Consumo)
-admin.site.register(Costo)
-admin.site.register(Empresa)
-admin.site.register(Metricas)
-admin.site.register(Notificacion)
-admin.site.register(ProveedorCloud)
-admin.site.register(Proyecto)
-admin.site.register(RecursoCloud)
-admin.site.register(Registro)
-admin.site.register(Reporte)
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "estado", "plan", "creado_en")
+    list_filter = ("estado", "plan")
+    search_fields = ("nombre",)
 
 
-@admin.register(SolicitudReporteMensual)
-class SolicitudReporteMensualAdmin(admin.ModelAdmin):
-    list_display = (
-        "creado_en",
-        "empresa",
-        "alcance",
-        "anio",
-        "mes",
-        "estado",
-        "periodo_parcial",
-        "usuario",
-    )
-    list_filter = ("estado", "alcance", "periodo_parcial")
-    search_fields = ("usuario__email", "empresa__nombre")
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "tenant", "proveedor_cloud_primario")
+    list_filter = ("proveedor_cloud_primario", "tenant")
+    search_fields = ("nombre", "tenant__nombre")
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("usuario", "tenant", "rol")
+    list_filter = ("rol", "tenant")
+    search_fields = ("usuario__email", "usuario__nombre", "tenant__nombre")

@@ -99,14 +99,17 @@ DATABASES = {
     'default': env.db('DATABASE_URL', default='sqlite:///db.sqlite3')
 }
 
-# Cache config (Redis/ElastiCache)
+# Cache config (Redis/ElastiCache) e Integridad de Sesión
 # - Producción (AWS Cluster Mode Enabled): Usar REDIS_URL=rediss://host:6379
 # - Local / Standalone: Usar REDIS_URL=redis://host:6379/1
-if env("REDIS_URL", default=None):
+# - Fallback de Desarrollo (DB): Si no se define REDIS_URL, las sesiones persisten en DB para simular stateless
+REDIS_URL = env("REDIS_URL", default=None)
+
+if REDIS_URL:
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": env("REDIS_URL"),
+            "LOCATION": REDIS_URL,
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
                 "CONNECTION_POOL_KWARGS": {
@@ -114,20 +117,32 @@ if env("REDIS_URL", default=None):
                     "retry_on_timeout": True,
                     "ssl_cert_reqs": None,  # Necesario para ElastiCache con TLS
                 },
-                # Forzar fallo rápido (en 2 seg) si Redis no responde
+                # Forzar fallo rápido (en 5 seg) si Redis no responde
                 "SOCKET_TIMEOUT": 5,
                 "SOCKET_CONNECT_TIMEOUT": 5,
                 "IGNORE_EXCEPTIONS": False,  # False para ver el error real en logs/browser
             },
         }
     }
+    # Forzar el backend de sesiones a usar el caché de Redis (django-redis)
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
 else:
+    import warnings
+    warnings.warn(
+        "ADVERTENCIA: La variable REDIS_URL no está definida. Usando el backend de sesiones en Base de Datos "
+        "('django.contrib.sessions.backends.db') como fallback en desarrollo para garantizar persistencia y simulación stateless. "
+        "Se recomienda levantar Redis en local con: docker run -p 6379:6379 -d redis"
+    )
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": "unique-snowflake",
         }
     }
+    # Forzar persistencia de sesiones en base de datos en lugar de LocMemCache
+    SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -208,3 +223,10 @@ REST_FRAMEWORK = {
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# --- AWS SDK (BOTO3) & AMAZON EVENTBRIDGE ---
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default=None)
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default=None)
+AWS_REGION_NAME = env("AWS_REGION_NAME", default="us-east-1")
+EVENTBRIDGE_BUS_NAME = env("EVENTBRIDGE_BUS_NAME", default="bite-event-bus")
+

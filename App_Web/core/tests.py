@@ -1,213 +1,167 @@
-from datetime import date, timedelta
-from decimal import Decimal
-
+import json
+from unittest.mock import patch, MagicMock
+from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
-from django.utils import timezone
-from rest_framework import status
+from core.models import Tenant, Project, UserProfile, EstadoTenant, PlanTenant, ProveedorCloud, RolUserProfile
 from rest_framework.test import APIClient
-
-from .models import (
-    AlcanceReporte,
-    Analisis,
-    Area,
-    Consumo,
-    Costo,
-    Divisa,
-    Empresa,
-    Estado,
-    EstadoSolicitudReporte,
-    Metricas,
-    Notificacion,
-    ProveedorCloud,
-    Proyecto,
-    RecursoCloud,
-    Reporte,
-    RolCliente,
-    SolicitudReporteMensual,
-    TipoRecurso,
-)
-from .reportes_service import usuario_puede_alcance
+from rest_framework import status
 
 Usuario = get_user_model()
 
 
-def _cadena_metrica_consumo(recurso):
-    n = Notificacion.objects.create(
-        usuario=recurso.proyecto.area.empresa.usuarios.first(),
-        fecha_notificacion=timezone.now(),
-        asunto="n",
-        contenido="c",
-    )
-    rep = Reporte.objects.create(
-        notificacion=n,
-        titulo="r",
-        fecha=timezone.now(),
-        nivel="media",
-    )
-    an = Analisis.objects.create(
-        reporte=rep,
-        fecha=timezone.now(),
-        duracion=timedelta(seconds=1),
-    )
-    m = Metricas.objects.create(analisis=an, titulo="m")
-    c = Consumo.objects.create(recurso=recurso, metrica=m, valor="1")
-    return c
+class CoreAdministrativeTests(TestCase):
+    """
+    Conjunto de pruebas unitarias modernas para el Microservicio 1: Core Administrativo de BITE.co.
+    Cubre: Aislamiento Multitenant, Integridad de Sesiones, Resiliencia de EventBridge y Django Signals.
+    """
 
-
-class AlcanceInternoTests(TestCase):
     def setUp(self):
-        self.empresa = Empresa.objects.create(nombre="ACME", tipo_empresa="Cliente")
-        self.area = Area.objects.create(empresa=self.empresa, nombre="Finanzas")
-        self.proyecto = Proyecto.objects.create(area=self.area, nombre="P1")
-        self.user_ej = Usuario.objects.create_user(
-            email="ej@acme.test",
-            password="x",
-            nombre="Ejecutivo",
-            empresa=self.empresa,
-            rol_cliente=RolCliente.EJECUTIVO_EMPRESA,
+        # 1. Crear Tenants de prueba
+        self.tenant_a = Tenant.objects.create(
+            nombre="Empresa A",
+            estado=EstadoTenant.ACTIVO,
+            plan=PlanTenant.ENTERPRISE
         )
-        self.user_pas = Usuario.objects.create_user(
-            email="pas@acme.test",
-            password="x",
-            nombre="Pasante",
-            empresa=self.empresa,
-            rol_cliente=RolCliente.COLABORADOR_LIMITADO,
-            proyecto_alcance=self.proyecto,
+        self.tenant_b = Tenant.objects.create(
+            nombre="Empresa B",
+            estado=EstadoTenant.ACTIVO,
+            plan=PlanTenant.FREE
         )
 
-    def test_colaborador_no_ve_alcance_empresa(self):
-        assert usuario_puede_alcance(
-            self.user_ej, self.empresa, AlcanceReporte.EMPRESA, None, None
+        # 2. Crear Usuarios y Perfiles Organizacionales
+        self.user_a = Usuario.objects.create_user(
+            email="admin@empresa_a.com",
+            nombre="Admin A",
+            password="securepasswordA"
         )
-        assert not usuario_puede_alcance(
-            self.user_pas, self.empresa, AlcanceReporte.EMPRESA, None, None
-        )
-
-    def test_colaborador_ve_su_proyecto(self):
-        assert usuario_puede_alcance(
-            self.user_pas,
-            self.empresa,
-            AlcanceReporte.PROYECTO,
-            None,
-            self.proyecto,
+        self.profile_a = UserProfile.objects.create(
+            usuario=self.user_a,
+            tenant=self.tenant_a,
+            rol=RolUserProfile.ADMIN
         )
 
-
-class ReporteMensualAPITests(TestCase):
-    def setUp(self):
-        self.empresa = Empresa.objects.create(nombre="ACME", tipo_empresa="Cliente")
-        self.area = Area.objects.create(empresa=self.empresa, nombre="Finanzas")
-        self.proyecto = Proyecto.objects.create(area=self.area, nombre="P1")
-        self.proveedor = ProveedorCloud.objects.create(empresa=self.empresa, nombre="aws")
-        self.recurso = RecursoCloud.objects.create(
-            proyecto=self.proyecto,
-            proveedor=self.proveedor,
-            nombre="vm-1",
-            tipo=TipoRecurso.COMPUTO,
+        self.user_b = Usuario.objects.create_user(
+            email="viewer@empresa_b.com",
+            nombre="Viewer B",
+            password="securepasswordB"
         )
-        self.user = Usuario.objects.create_user(
-            email="cli@acme.test",
-            password="secret",
-            nombre="Cliente",
-            empresa=self.empresa,
-            rol_cliente=RolCliente.EJECUTIVO_EMPRESA,
+        self.profile_b = UserProfile.objects.create(
+            usuario=self.user_b,
+            tenant=self.tenant_b,
+            rol=RolUserProfile.VIEWER
         )
-        consumo = _cadena_metrica_consumo(self.recurso)
-        Costo.objects.create(
-            consumo=consumo,
-            area=self.area,
-            fecha=date(2026, 2, 15),
-            monto=Decimal("100.50"),
-            divisa=Divisa.USD,
+
+        # 3. Clientes de API con Autenticación Simulada
+        self.client_a = APIClient()
+        self.client_a.force_authenticate(user=self.user_a)
+
+        self.client_b = APIClient()
+        self.client_b.force_authenticate(user=self.user_b)
+
+    @patch("core.signals.boto3.client")
+    def test_creacion_proyecto_publica_evento_eventbridge(self, mock_boto_client):
+        """
+        Verifica que al guardar un Project, se dispare la señal post_save y se publique
+        el evento JSON correcto en AWS EventBridge a través de boto3.
+        """
+        mock_events = MagicMock()
+        mock_events.put_events.return_value = {"FailedEntryCount": 0, "Entries": []}
+        mock_boto_client.return_value = mock_events
+
+        # Crear Proyecto
+        proj = Project.objects.create(
+            tenant=self.tenant_a,
+            nombre="Proyecto FinOps A",
+            descripcion="Optimización de instancias EC2",
+            proveedor_cloud_primario=ProveedorCloud.AWS
         )
-        self.client = APIClient()
-        self.client.force_login(self.user)
 
-    def test_reporte_agrega_costos_mes(self):
-        url = "/api/v1/reportes/mensuales/"
-        r = self.client.post(
-            url,
-            {
-                "anio": 2026,
-                "mes": 2,
-                "alcance": AlcanceReporte.EMPRESA,
-            },
-            format="json",
+        # Verificar que se instanció el cliente y se llamó put_events
+        self.assertTrue(mock_events.put_events.called)
+        
+        # Recuperar argumentos pasados a EventBridge
+        call_args = mock_events.put_events.call_args[1]
+        entries = call_args.get("Entries", [])
+        self.assertEqual(len(entries), 1)
+        
+        entry = entries[0]
+        self.assertEqual(entry["Source"], "bite.core")
+        self.assertEqual(entry["DetailType"], "ProjectCreated")
+        self.assertEqual(entry["EventBusName"], "bite-event-bus")
+        
+        # Validar el Detail JSON estructurado
+        detail = json.loads(entry["Detail"])
+        self.assertEqual(detail["id"], proj.id)
+        self.assertEqual(detail["nombre"], "Proyecto FinOps A")
+        self.assertEqual(detail["tenant_id"], self.tenant_a.id)
+
+    @patch("core.signals.boto3.client")
+    def test_falla_eventbridge_no_aborta_transaccion_db(self, mock_boto_client):
+        """
+        Garantiza la resiliencia y el aislamiento de fallos (ASR-04/05). 
+        Si EventBridge lanza una excepción de red, la transacción de base de datos local
+        debe completarse de forma exitosa sin perturbar el guardado en DB.
+        """
+        mock_events = MagicMock()
+        mock_events.put_events.side_effect = Exception("Falla crítica de red o Timeout con AWS")
+        mock_boto_client.return_value = mock_events
+
+        # Crear Proyecto (debe guardarse sin lanzar excepciones a la capa superior)
+        proj = Project.objects.create(
+            tenant=self.tenant_a,
+            nombre="Proyecto Resiliente",
+            descripcion="Prueba de fallo EventBridge",
+            proveedor_cloud_primario=ProveedorCloud.GCP
         )
-        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(r.data["estado"], EstadoSolicitudReporte.COMPLETADO)
-        self.assertEqual(Decimal(r.data["monto_total"]), Decimal("100.50"))
-        self.assertTrue(r.data["periodo_parcial"] is False)
 
-    def test_reutiliza_historial_mes_cerrado(self):
-        url = "/api/v1/reportes/mensuales/"
-        body = {"anio": 2026, "mes": 2, "alcance": AlcanceReporte.EMPRESA}
-        r1 = self.client.post(url, body, format="json")
-        self.assertEqual(r1.status_code, status.HTTP_201_CREATED)
-        pk1 = r1.data["id"]
-        r2 = self.client.post(url, body, format="json")
-        self.assertEqual(r2.status_code, status.HTTP_200_OK)
-        self.assertEqual(r2.data["id"], pk1)
+        # El objeto debe haberse persistido correctamente
+        self.assertIsNotNone(proj.id)
+        self.assertEqual(Project.objects.filter(id=proj.id).count(), 1)
 
-    @override_settings(BITE_SIMULAR_SOBRECARGA_REPORTES=True)
-    def test_sobrecarga_crea_notificacion(self):
-        from .models import Notificacion
-
-        antes = Notificacion.objects.filter(usuario=self.user).count()
-        r = self.client.post(
-            "/api/v1/reportes/mensuales/",
-            {"anio": 2025, "mes": 1, "alcance": AlcanceReporte.EMPRESA},
-            format="json",
+    def test_aislamiento_multitenant_proyectos(self):
+        """
+        Verifica el estricto aislamiento de proyectos (Multitenancy).
+        Un usuario de la Empresa A no debe poder ver los proyectos de la Empresa B.
+        """
+        # Crear proyecto en Empresa B
+        proj_b = Project.objects.create(
+            tenant=self.tenant_b,
+            nombre="Proyecto Privado B",
+            proveedor_cloud_primario=ProveedorCloud.GCP
         )
-        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(r.data["estado"], EstadoSolicitudReporte.RECHAZADO_SOBRECARGA)
-        self.assertGreater(Notificacion.objects.filter(usuario=self.user).count(), antes)
 
+        # 1. Cliente A (Empresa A) intenta listar proyectos
+        response = self.client_a.get("/api/v1/projects/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        project_ids = [p["id"] for p in response.data]
+        self.assertNotIn(proj_b.id, project_ids)
 
-class RecursosInfrautilizadosAPITests(TestCase):
-    def setUp(self):
-        self.empresa = Empresa.objects.create(nombre="ACME", tipo_empresa="Cliente")
-        self.area = Area.objects.create(empresa=self.empresa, nombre="Finanzas")
-        self.proyecto = Proyecto.objects.create(area=self.area, nombre="P1")
-        self.proveedor = ProveedorCloud.objects.create(empresa=self.empresa, nombre="aws")
-        RecursoCloud.objects.create(
-            proyecto=self.proyecto,
-            proveedor=self.proveedor,
-            nombre="baja-cpu",
-            tipo=TipoRecurso.COMPUTO,
-            estado=Estado.ACTIVO,
-            cpu_utilizacion_pct="5.00",
-        )
-        RecursoCloud.objects.create(
-            proyecto=self.proyecto,
-            proveedor=self.proveedor,
-            nombre="alta-cpu",
-            tipo=TipoRecurso.COMPUTO,
-            estado=Estado.ACTIVO,
-            cpu_utilizacion_pct="90.00",
-        )
-        self.user = Usuario.objects.create_user(
-            email="cli@acme.test",
-            password="secret",
-            nombre="Cliente",
-            empresa=self.empresa,
-            rol_cliente=RolCliente.EJECUTIVO_EMPRESA,
-        )
-        self.client = APIClient()
+        # 2. Cliente A intenta acceder directamente por ID al proyecto de la Empresa B
+        response_detail = self.client_a.get(f"/api/v1/projects/{proj_b.id}/")
+        # Debe retornar 404 para ocultar la existencia y resguardar la confidencialidad
+        self.assertEqual(response_detail.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_lista_solo_infrautilizados(self):
-        self.client.force_login(self.user)
-        r = self.client.get("/api/v1/analisis/recursos-infrautilizados/")
-        self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertEqual(r.data["total"], 1)
-        self.assertEqual(r.data["recursos"][0]["nombre"], "baja-cpu")
+    def test_usuario_estandar_no_puede_crear_proyecto_en_otro_tenant(self):
+        """
+        Verifica que la API impida a un usuario asociar proyectos a un Tenant ajeno.
+        """
+        payload = {
+            "tenant": self.tenant_a.id,
+            "nombre": "Inyección Maliciosa de Proyecto",
+            "proveedor_cloud_primario": ProveedorCloud.AWS
+        }
+        
+        # Cliente B intenta asociar su proyecto al Tenant A
+        response = self.client_b.post("/api/v1/projects/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("tenant", response.data)
 
-    def test_basic_auth_jmeter(self):
-        r = self.client.get(
-            "/api/v1/analisis/recursos-infrautilizados/",
-            HTTP_AUTHORIZATION="Basic "
-            + __import__("base64").b64encode(b"cli@acme.test:secret").decode(),
-        )
-        self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertEqual(r.data["total"], 1)
+    def test_health_check_operational(self):
+        """
+        Valida que el endpoint de salud proactivo (/health/) retorne estado operacional
+        saludable de la base de datos y la caché de desarrollo.
+        """
+        response = self.client_a.get("/health/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json()["database"], "ok")
