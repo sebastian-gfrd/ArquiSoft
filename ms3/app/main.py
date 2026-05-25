@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional
 import jwt
 import httpx
 from fastapi import FastAPI, Depends, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 
 # Importaciones locales
 from app.schemas import IntegrationRequest, JobAcceptedResponse
@@ -27,6 +29,14 @@ app = FastAPI(
         "Recibe solicitudes, valida credenciales y delega a SQS de forma asíncrona."
     ),
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex="https?://.*",  # Compatible con allow_credentials=True en Starlette
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Registrar el router público de diagnóstico de salud (/health/)
@@ -220,3 +230,7 @@ async def ingest_cloud_data(
         status="queued",
         timestamp=datetime.now(timezone.utc)
     )
+
+# Envoltura para AWS Lambda
+handler = Mangum(app)
+

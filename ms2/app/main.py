@@ -3,6 +3,8 @@ import logging
 import jwt
 import httpx
 from fastapi import FastAPI, Depends, Header, HTTPException, status, Path
+from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from typing import Dict, Any, Optional
@@ -25,6 +27,14 @@ app = FastAPI(
     title="BITE.co - Microservicio de Analytics & Reportes (FastAPI)",
     description="Microservicio de lectura rápida (Queries) del patrón CQRS. Desplegado en AWS Lambda.",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex="https?://.*",  # Compatible con allow_credentials=True en Starlette
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Registrar el router de diagnóstico de salud pública
@@ -261,3 +271,7 @@ async def get_monthly_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno al consultar el reporte mensual histórico"
         )
+
+# Envoltura para AWS Lambda
+handler = Mangum(app)
+

@@ -196,13 +196,16 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- SEGURIDAD Y CORS ---
 CORS_ALLOW_ALL_ORIGINS = True  # Ajustar en producción real a dominios específicos
+CORS_ALLOWED_ORIGINS = [
+    "https://tu-dominio-frontend.com",
+]
 
 # Forzar HTTPS si estamos en producción (DEBUG=False)
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = False
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 0
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True

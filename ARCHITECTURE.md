@@ -88,3 +88,22 @@ Cuando se te solicite generar, refactorizar o analizar código para cualquiera d
 1. **Ninguna vista de Django** realice agregaciones matemáticas de consumo en tiempo real; estas deben ser delegadas al Worker o consultadas directamente desde los endpoints de FastAPI de lectura.
 2. **Los adaptadores de nube** implementen la clase base abstracta de integración para preservar el principio Open/Closed.
 3. **El manejo de sesiones** de Django apunte a la infraestructura compartida de Redis para mantener la arquitectura web completamente *stateless*.
+
+---
+
+## 5. Guía de Operaciones y Despliegue de Base de Datos ("Día Cero")
+
+### Ejecución de Migraciones de Base de Datos en AWS ECS
+Para evitar colisiones de concurrencia e impedir la corrupción de datos en Amazon Aurora PostgreSQL (por ejemplo, si múltiples contenedores levantados por Fargate intentan ejecutar `migrate` al mismo tiempo durante el auto-escalado), **nunca** incluya `python manage.py migrate` en el comando de arranque continuo de las tareas de producción.
+
+En su lugar, ejecute las migraciones de forma manual o automatizada en el pipeline de despliegue como una **Tarea Autónoma de un Solo Uso (Run Task)** en AWS ECS una vez finalizada la provisión de infraestructura con Terraform:
+
+```bash
+# Ejecutar migración estructural de Django (Admin DB) en AWS ECS Fargate
+aws ecs run-task \
+    --cluster bite-ecs-cluster \
+    --task-definition ms1-django-core \
+    --launch-type FARGATE \
+    --network-configuration "awsvpcConfiguration={subnets=[TU_SUBNET_PRIVADA],securityGroups=[TU_SG]}" \
+    --overrides '{"containerOverrides": [{"name": "django-core", "command": ["python", "manage.py", "migrate"]}]}'
+```
