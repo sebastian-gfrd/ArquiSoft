@@ -123,7 +123,7 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "16.2" # <-- Cambiado a 16.2 (disponible en la API de AWS)
+  engine_version = "16.1" # <-- Versión base de la rama 16 soportada nativamente
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
@@ -195,17 +195,16 @@ module "ecs_ms1_django" {
   memory      = 2048
   subnet_ids  = module.vpc.private_subnets
 
-  # Definición estricta del contenedor para el mapeo de puertos de la v7.x
+  # UNIFICACIÓN DE LLAVES: django-core es la llave del objeto
   container_definitions = {
-    django-core = {
+    "django-core" = { 
       image = "108618334241.dkr.ecr.us-east-1.amazonaws.com/bite-ms1-django:latest"
       cpu   = 1024
       memory = 2048
       
-      # Estructura de mapeo nativa compatible con el Target Group
       port_mappings = [
         {
-          name          = "django-core-8000"
+          name          = "django-core"
           container_port = 8000
           host_port      = 8000
           protocol       = "tcp"
@@ -214,12 +213,11 @@ module "ecs_ms1_django" {
     }
   }
 
-  # Asociación al balanceador de carga indicando el nombre del mapeo
   load_balancer = {
     django_service = {
       target_group_arn = aws_lb_target_group.ms1_tg.arn
-      container_name   = "django-core"
-      container_port   = 8000 # Mismo puerto definido arriba
+      container_name   = "django-core" # <-- DEBE SER IDÉNTICO A LA LLAVE DE ARRIBA
+      container_port   = 8000
     }
   }
 }
