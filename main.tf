@@ -1,12 +1,12 @@
 # ==========================================
-# PROYECTO: BITE.co - FinOps SaaS (main.tf)
+# PROYECTO: BITE.co - FinOps SaaS (main.tf - Versión 2026 Modernizada)
 # ==========================================
 
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0" # <-- ACTUALIZADO: Forzamos la rama moderna 6.x
     }
   }
 }
@@ -16,11 +16,11 @@ provider "aws" {
 }
 
 # ------------------------------------------
-# 1. CAPA DE RED (VPC & Subnets) - ASR-04 (Seguridad)
+# 1. CAPA DE RED (VPC & Subnets) - ACTUALIZADO V6
 # ------------------------------------------
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "5.0.0"
+  version = "5.13.0" # <-- ACTUALIZADO: Versión moderna compatible con AWS v6
 
   name = "bite-vpc"
   cidr = "10.0.0.0/16"
@@ -114,22 +114,30 @@ resource "aws_cloudwatch_event_bus" "bite_event_bus" {
 }
 
 # ------------------------------------------
-# 3. CAPA DE PERSISTENCIA (Database per Service)
+# 3. CAPA DE PERSISTENCIA (Database per Service) - ACTUALIZADO V10
 # ------------------------------------------
 # Admin DB (PostgreSQL para Django MS1) y Analytics DB
 module "aurora_cluster" {
-  source = "terraform-aws-modules/rds-aurora/aws"
+  source  = "terraform-aws-modules/rds-aurora/aws"
+  version = "10.2.0" # <-- ACTUALIZADO: La última versión estable
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
   engine_version = "15.4"
-  instance_class = "db.r6g.large"
+
+  # Estructura moderna nativa de la v10:
   instances = {
-    writer = {} # Usado por MS1 (Admin) y MS4 (Escritura Analítica)
-    reader = {} # Usado por MS2 (Lecturas Rápidas CQRS)
+    writer = {
+      instance_class = "db.r6g.large"
+    }
+    reader = {
+      instance_class = "db.r6g.large"
+    }
   }
-  vpc_id               = module.vpc.vpc_id
-  db_subnet_group_name = module.vpc.database_subnet_group_name
+
+  vpc_id                 = module.vpc.vpc_id
+  db_subnet_group_name   = module.vpc.database_subnet_group_name
+  create_db_subnet_group = false 
 }
 
 # Amazon RDS Proxy (Protección de Escalabilidad - ASR-06)
@@ -191,12 +199,12 @@ module "ecs_ms4_worker" {
 }
 
 # ------------------------------------------
-# 5. CAPA DE CÓMPUTO SERVERLESS (AWS Lambda)
+# 5. CAPA DE CÓMPUTO SERVERLESS (AWS Lambda) - ACTUALIZADO V7
 # ------------------------------------------
 # Microservicio 2: Analytics API
 module "lambda_ms2_analytics" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = "6.0.0"
+  version = "7.20.0" # <-- ACTUALIZADO: Compatible con AWS v6
 
   function_name = "ms2-analytics-api"
   handler       = "app.main.handler"
@@ -213,6 +221,7 @@ module "lambda_ms2_analytics" {
 # Microservicio 3: Cloud Integration Service
 module "lambda_ms3_integration" {
   source  = "terraform-aws-modules/lambda/aws"
+  version = "7.20.0" # <-- ACTUALIZADO
 
   function_name = "ms3-integration-api"
   handler       = "app.main.handler"
