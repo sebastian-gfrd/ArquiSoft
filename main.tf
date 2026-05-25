@@ -123,7 +123,7 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "15.5" # <-- Cambiado a una versión activa
+  engine_version = "16.1" # <-- Actualizado a versión LTS robusta en us-east-1
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
@@ -201,10 +201,14 @@ module "ecs_ms1_django" {
       image = "108618334241.dkr.ecr.us-east-1.amazonaws.com/bite-ms1-django:latest"
       cpu   = 1024
       memory = 2048
+      
+      # Sintaxis corregida para el mapeo de puertos del contenedor en la v7
       port_mappings = [
         {
+          name          = "django-core"
           container_port = 8000
           host_port      = 8000
+          protocol       = "tcp"
         }
       ]
     }
@@ -265,6 +269,12 @@ module "lambda_ms2_analytics" {
     DATABASE_URL = aws_db_proxy.bite_rds_proxy.endpoint # Conexión vía Proxy
     REDIS_URL    = aws_elasticache_cluster.bite_redis.cache_nodes[0].address
   }
+}
+
+# Otorgar permisos de VPC a la Lambda de Analítica
+resource "aws_iam_role_policy_attachment" "lambda_vpc_permissions" {
+  role       = module.lambda_ms2_analytics.lambda_role_name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 # Microservicio 3: Cloud Integration Service
