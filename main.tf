@@ -162,7 +162,7 @@ resource "aws_db_proxy" "bite_rds_proxy" {
   vpc_subnet_ids         = module.vpc.private_subnets
   vpc_security_group_ids = [aws_security_group.rds_proxy_sg.id]
   
-  role_arn               = aws_iam_role.rds_proxy_role.arn # <-- ¡SOLUCIONADO!
+  role_arn               = aws_iam_role.rds_proxy_role.arn
 }
 
 # Caché (Redis para MS1 Sesiones y MS2 Cache-Aside)
@@ -184,14 +184,14 @@ resource "aws_ecs_cluster" "bite_cluster" {
 
 # Microservicio 1: Django Core actualizado a la sintaxis de la v7.x
 module "ecs_ms1_django" {
-  source = "terraform-aws-modules/ecs/aws//modules/service"
+  source  = "terraform-aws-modules/ecs/aws//modules/service"
   version = "7.5.0"
 
   name        = "ms1-django-core"
   cluster_arn = aws_ecs_cluster.bite_cluster.arn
   cpu         = 1024
   memory      = 2048
-  
+
   # EL CAMBIO AQUÍ: Ahora se define indexado por llave para admitir multiservicios
   load_balancer = {
     django_service = { # Nombre identificador del mapeo
@@ -202,9 +202,10 @@ module "ecs_ms1_django" {
   }
 }
 
-# Microservicio 4: Celery Worker (Headless)
+# Microservicio 4: Celery Worker (Headless) actualizado a la v7.5.0
 module "ecs_ms4_worker" {
-  source = "terraform-aws-modules/ecs/aws//modules/service"
+  source  = "terraform-aws-modules/ecs/aws//modules/service"
+  version = "7.5.0"
 
   name        = "ms4-celery-worker"
   cluster_arn = aws_ecs_cluster.bite_cluster.arn
