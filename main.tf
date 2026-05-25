@@ -140,6 +140,19 @@ module "aurora_cluster" {
   create_db_subnet_group = false 
 }
 
+# Rol mínimo para que el Proxy funcione en la v6
+resource "aws_iam_role" "rds_proxy_role" {
+  name = "bite-rds-proxy-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "rds.amazonaws.com" }
+    }]
+  })
+}
+
 # Amazon RDS Proxy (Protección de Escalabilidad - ASR-06)
 resource "aws_db_proxy" "bite_rds_proxy" {
   name                   = "bite-rds-proxy"
@@ -148,6 +161,8 @@ resource "aws_db_proxy" "bite_rds_proxy" {
   require_tls            = true
   vpc_subnet_ids         = module.vpc.private_subnets
   vpc_security_group_ids = [aws_security_group.rds_proxy_sg.id]
+  
+  role_arn               = aws_iam_role.rds_proxy_role.arn # <-- ¡SOLUCIONADO!
 }
 
 # Caché (Redis para MS1 Sesiones y MS2 Cache-Aside)
@@ -167,19 +182,23 @@ resource "aws_ecs_cluster" "bite_cluster" {
   name = "bite-ecs-cluster"
 }
 
-# Microservicio 1: Django Core
+# Microservicio 1: Django Core actualizado a la sintaxis de la v7.x
 module "ecs_ms1_django" {
   source = "terraform-aws-modules/ecs/aws//modules/service"
+  version = "7.5.0"
 
   name        = "ms1-django-core"
   cluster_arn = aws_ecs_cluster.bite_cluster.arn
   cpu         = 1024
   memory      = 2048
-  # Conexión al ALB para rutas /auth/*
+  
+  # EL CAMBIO AQUÍ: Ahora se define indexado por llave para admitir multiservicios
   load_balancer = {
-    target_group_arn = aws_lb_target_group.ms1_tg.arn
-    container_name   = "django-core"
-    container_port   = 8000
+    django_service = { # Nombre identificador del mapeo
+      target_group_arn = aws_lb_target_group.ms1_tg.arn
+      container_name   = "django-core"
+      container_port   = 8000
+    }
   }
 }
 
