@@ -192,6 +192,9 @@ module "ecs_ms1_django" {
   cpu         = 1024
   memory      = 2048
 
+  # SOLUCIÓN CÓMPUTO: Asignar las subredes privadas de la VPC
+  subnet_ids  = module.vpc.private_subnets
+
   # EL CAMBIO AQUÍ: Ahora se define indexado por llave para admitir multiservicios
   load_balancer = {
     django_service = { # Nombre identificador del mapeo
@@ -213,6 +216,9 @@ module "ecs_ms4_worker" {
   memory      = 4096
   # Sin Load Balancer (Aplicación de fondo)
   
+  # SOLUCIÓN CÓMPUTO: Mismas subredes para el aislamiento del Worker
+  subnet_ids  = module.vpc.private_subnets
+
   # Auto-scaling basado en SQS Queue Depth
   autoscaling_min_capacity = 2
   autoscaling_max_capacity = 4
@@ -232,6 +238,10 @@ module "lambda_ms2_analytics" {
   vpc_subnet_ids         = module.vpc.private_subnets
   vpc_security_group_ids = [aws_security_group.lambda_sg.id]
 
+  # SOLUCIÓN SERVERLESS: Desactivar empaquetado automático y apuntar al zip buildeado
+  create_package         = false
+  local_existing_package = "${path.module}/ms2-deployment.zip"
+
   environment_variables = {
     DATABASE_URL = aws_db_proxy.bite_rds_proxy.endpoint # Conexión vía Proxy
     REDIS_URL    = aws_elasticache_cluster.bite_redis.cache_nodes[0].address
@@ -246,6 +256,10 @@ module "lambda_ms3_integration" {
   function_name = "ms3-integration-api"
   handler       = "app.main.handler"
   runtime       = "python3.11"
+
+  # SOLUCIÓN SERVERLESS: Misma estrategia para MS3
+  create_package         = false
+  local_existing_package = "${path.module}/ms3-deployment.zip"
 
   environment_variables = {
     SQS_QUEUE_URL = aws_sqs_queue.bite_worker_queue.url
