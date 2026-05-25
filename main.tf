@@ -123,7 +123,7 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "16.1" # <-- Actualizado a versión LTS robusta en us-east-1
+  engine_version = "16.2" # <-- Cambiado a 16.2 (disponible en la API de AWS)
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
@@ -195,17 +195,17 @@ module "ecs_ms1_django" {
   memory      = 2048
   subnet_ids  = module.vpc.private_subnets
 
-  # <-- SOLUCIÓN: Definición explícita del contenedor que exige Fargate
+  # Definición estricta del contenedor para el mapeo de puertos de la v7.x
   container_definitions = {
     django-core = {
       image = "108618334241.dkr.ecr.us-east-1.amazonaws.com/bite-ms1-django:latest"
       cpu   = 1024
       memory = 2048
       
-      # Sintaxis corregida para el mapeo de puertos del contenedor en la v7
+      # Estructura de mapeo nativa compatible con el Target Group
       port_mappings = [
         {
-          name          = "django-core"
+          name          = "django-core-8000"
           container_port = 8000
           host_port      = 8000
           protocol       = "tcp"
@@ -214,11 +214,12 @@ module "ecs_ms1_django" {
     }
   }
 
+  # Asociación al balanceador de carga indicando el nombre del mapeo
   load_balancer = {
     django_service = {
       target_group_arn = aws_lb_target_group.ms1_tg.arn
       container_name   = "django-core"
-      container_port   = 8000
+      container_port   = 8000 # Mismo puerto definido arriba
     }
   }
 }
@@ -306,13 +307,14 @@ resource "aws_lb" "bite_alb" {
   subnets            = module.vpc.public_subnets
 }
 
-# Listener modificado al puerto 80 (HTTP) para saltarnos el certificado SSL en la entrega
+# Listener principal HTTPS
 resource "aws_lb_listener" "https_listener" {
   load_balancer_arn = aws_lb.bite_alb.arn
-  port              = "80"        # <-- Cambiado de 443 a 80
-  protocol          = "HTTP"       # <-- Cambiado de HTTPS a HTTP
-  # Se remueve la línea de ssl_policy y certificate_arn
-
+  port              = "443"     # <-- DEBE SER 443
+  protocol          = "HTTPS"   # <-- DEBE SER HTTPS
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.acm_certificate_arn # <-- Pon aquí el ARN real de tu certificado importado
+  
   # Acción por defecto: Bloquear tráfico no enrutado (ASR-04)
   default_action {
     type = "fixed-response"
@@ -405,7 +407,7 @@ resource "aws_lb_listener_rule" "rule_auth_ms1" {
   }
 }
 
-# Regla 2: Tráfico Analítico -> MS2 (FastAPI Lambda) con Auth0
+# Regla 2: Tráfico Analítico -> MS2 (FastAPI Lambda) directo por HTTP/HTTPS
 resource "aws_lb_listener_rule" "rule_reports_ms2" {
   listener_arn = aws_lb_listener.https_listener.arn
   priority     = 110
@@ -416,26 +418,13 @@ resource "aws_lb_listener_rule" "rule_reports_ms2" {
     }
   }
 
-  # Interceptor OIDC en el perímetro (Verificación de Identidad)
-  action {
-    type = "authenticate-oidc"
-    authenticate_oidc {
-      authorization_endpoint = "https://${var.auth0_domain}/authorize"
-      client_id              = var.auth0_client_id
-      client_secret          = var.auth0_client_secret
-      issuer                 = "https://${var.auth0_domain}/"
-      token_endpoint         = "https://${var.auth0_domain}/oauth/token"
-      user_info_endpoint     = "https://${var.auth0_domain}/userinfo"
-    }
-  }
-
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.lambda_ms2_tg.arn
   }
 }
 
-# Regla 3: Tráfico de Integración -> MS3 (FastAPI Lambda) con Auth0
+# Regla 3: Tráfico de Integración -> MS3 (FastAPI Lambda) directo por HTTP/HTTPS
 resource "aws_lb_listener_rule" "rule_integrate_ms3" {
   listener_arn = aws_lb_listener.https_listener.arn
   priority     = 120
@@ -443,19 +432,6 @@ resource "aws_lb_listener_rule" "rule_integrate_ms3" {
   condition {
     path_pattern {
       values = ["/integrate/*"]
-    }
-  }
-
-  action {
-    type = "authenticate-oidc"
-    authenticate_oidc {
-      # Mismos parámetros de Auth0 para inyectar x-amzn-oidc-data
-      authorization_endpoint = "https://${var.auth0_domain}/authorize"
-      client_id              = var.auth0_client_id
-      client_secret          = var.auth0_client_secret
-      issuer                 = "https://${var.auth0_domain}/"
-      token_endpoint         = "https://${var.auth0_domain}/oauth/token"
-      user_info_endpoint     = "https://${var.auth0_domain}/userinfo"
     }
   }
 

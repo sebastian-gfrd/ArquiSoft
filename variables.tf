@@ -10,24 +10,24 @@ variable "aws_region" {
 variable "acm_certificate_arn" {
   type        = string
   description = "ARN del certificado SSL/TLS en AWS Certificate Manager (ACM) para el balanceador ALB."
-  default     = "arn:aws:acm:us-east-1:123456789012:certificate/example-cert-id"
+  default     = "arn:aws:acm:us-east-1:108618334241:certificate/cf7ea541-1016-4aea-a8fa-6daf965e8144"
 }
 
 variable "auth0_domain" {
   type        = string
   description = "Dominio de Auth0 para la integración de seguridad e identidad OIDC."
-  default     = "dev-example.auth0.com"
+  default     = "dev-1i40cwy5epnstuuq.us.auth0.com"
 }
 
 variable "auth0_client_id" {
   type        = string
   description = "Identificador de Cliente (Client ID) de Auth0 para el balanceador ALB."
-  default     = "auth0-client-id-placeholder"
+  default     = "9av9zWA1foOBjxZVKjPXbvQZrezJMuIJ"
 }
 
 variable "auth0_client_secret" {
   type        = string
   description = "Secreto del Cliente (Client Secret) de Auth0 para el balanceador ALB."
   sensitive   = true
-  default     = "auth0-client-secret-placeholder"
+  default     = "OXtSjEmzlYz_x0vhzH3fD1feXItHVFElqx0Evn0Y95WOldGJvNITgKcc3ndzFbHY"
 }
