@@ -407,7 +407,7 @@ resource "aws_lb_listener_rule" "rule_auth_ms1" {
   }
 }
 
-# Regla 2: Tráfico Analítico -> MS2 (FastAPI Lambda) directo por HTTP/HTTPS
+# Regla 2: Tráfico Analítico -> MS2 (FastAPI Lambda) con Auth0
 resource "aws_lb_listener_rule" "rule_reports_ms2" {
   listener_arn = aws_lb_listener.https_listener.arn
   priority     = 110
@@ -418,13 +418,26 @@ resource "aws_lb_listener_rule" "rule_reports_ms2" {
     }
   }
 
+  # Interceptor OIDC en el perímetro (Verificación de Identidad)
+  action {
+    type = "authenticate-oidc"
+    authenticate_oidc {
+      authorization_endpoint = "https://${var.auth0_domain}/authorize"
+      client_id              = var.auth0_client_id
+      client_secret          = var.auth0_client_secret
+      issuer                 = "https://${var.auth0_domain}/"
+      token_endpoint         = "https://${var.auth0_domain}/oauth/token"
+      user_info_endpoint     = "https://${var.auth0_domain}/userinfo"
+    }
+  }
+
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.lambda_ms2_tg.arn
   }
 }
 
-# Regla 3: Tráfico de Integración -> MS3 (FastAPI Lambda) directo por HTTP/HTTPS
+# Regla 3: Tráfico de Integración -> MS3 (FastAPI Lambda) con Auth0
 resource "aws_lb_listener_rule" "rule_integrate_ms3" {
   listener_arn = aws_lb_listener.https_listener.arn
   priority     = 120
@@ -432,6 +445,19 @@ resource "aws_lb_listener_rule" "rule_integrate_ms3" {
   condition {
     path_pattern {
       values = ["/integrate/*"]
+    }
+  }
+
+  action {
+    type = "authenticate-oidc"
+    authenticate_oidc {
+      # Mismos parámetros de Auth0 para inyectar x-amzn-oidc-data
+      authorization_endpoint = "https://${var.auth0_domain}/authorize"
+      client_id              = var.auth0_client_id
+      client_secret          = var.auth0_client_secret
+      issuer                 = "https://${var.auth0_domain}/"
+      token_endpoint         = "https://${var.auth0_domain}/oauth/token"
+      user_info_endpoint     = "https://${var.auth0_domain}/userinfo"
     }
   }
 
