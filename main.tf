@@ -184,7 +184,7 @@ resource "aws_ecs_cluster" "bite_cluster" {
   name = "bite-ecs-cluster"
 }
 
-# Microservicio 1: Django Core actualizado a la sintaxis de la v7.x
+# Microservicio 1: Django Core con su contenedor definido
 module "ecs_ms1_django" {
   source  = "terraform-aws-modules/ecs/aws//modules/service"
   version = "7.5.0"
@@ -219,7 +219,7 @@ module "ecs_ms1_django" {
   }
 }
 
-# Microservicio 4: Celery Worker (Headless) actualizado a la v7.5.0
+# Microservicio 4: Celery Worker con su contenedor definido
 module "ecs_ms4_worker" {
   source  = "terraform-aws-modules/ecs/aws//modules/service"
   version = "7.5.0"
@@ -296,13 +296,14 @@ resource "aws_lb" "bite_alb" {
   subnets            = module.vpc.public_subnets
 }
 
-# Listener principal HTTPS
+# Listener modificado al puerto 80 (HTTP) para saltarnos el certificado SSL en la entrega
 resource "aws_lb_listener" "https_listener" {
   load_balancer_arn = aws_lb.bite_alb.arn
   port              = "80"        # <-- Cambiado de 443 a 80
   protocol          = "HTTP"       # <-- Cambiado de HTTPS a HTTP
   # Se remueve la línea de ssl_policy y certificate_arn
 
+  # Acción por defecto: Bloquear tráfico no enrutado (ASR-04)
   default_action {
     type = "fixed-response"
     fixed_response {
