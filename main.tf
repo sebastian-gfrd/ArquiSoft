@@ -130,11 +130,12 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "16.8" # <-- Versión LTS plenamente soportada y activa en us-east-1
+  engine_version = "16.8" 
 
-  # CORRECCIÓN CRÍTICA DE CREDENCIALES:
-  master_username = "bite_admin"          # <-- Usuario maestro obligatorio
-  master_password = "BitePassword2026!"   # <-- Contraseña maestra obligatoria (usa una robusta)
+  # SINTAXIS MODERNA COMPATIBLE CON LA V10.X:
+  username                    = "bite_admin"        # <-- Cambiado de master_username a username
+  password                    = "BitePassword2026!" # <-- Cambiado de master_password a password
+  manage_master_user_password = false                # <-- Desactivar Secrets Manager para usar la clave de arriba
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
