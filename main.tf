@@ -132,10 +132,9 @@ module "aurora_cluster" {
   engine         = "aurora-postgresql"
   engine_version = "16.8" 
 
-  # CONFIGURACIÓN EXACTA BASADA EN LA V10.2.0 DEL REGISTRY:
-  master_username             = "bite_admin"          # <-- Nombre correcto según los inputs del módulo
-  master_password_wo             = "BitePassword2026!"   # <-- Parámetro correcto según los inputs del módulo
-  manage_master_user_password = false                 # <-- CRÍTICO: Desactiva Secrets Manager para evitar conflictos
+  # CONFIGURACIÓN ESTÁNDAR DE PRODUCCIÓN V10.X:
+  master_username             = "bite_admin"          # Usuario maestro
+  manage_master_user_password = true                  # <-- ¡SOLUCIÓN! Dejamos que AWS cree y administre la clave de forma segura en Secrets Manager
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
