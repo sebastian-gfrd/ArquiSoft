@@ -132,6 +132,10 @@ module "aurora_cluster" {
   engine         = "aurora-postgresql"
   engine_version = "16.8" # <-- Versión LTS plenamente soportada y activa en us-east-1
 
+  # CORRECCIÓN CRÍTICA DE CREDENCIALES:
+  master_username = "bite_admin"          # <-- Usuario maestro obligatorio
+  master_password = "BitePassword2026!"   # <-- Contraseña maestra obligatoria (usa una robusta)
+
   instances = {
     writer = { instance_class = "db.r6g.large" }
     reader = { instance_class = "db.r6g.large" }
