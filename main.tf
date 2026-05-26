@@ -123,7 +123,7 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "16.1" # <-- Versión base de la rama 16 soportada nativamente
+  engine_version = "16.2" # <-- Versión LTS plenamente soportada y activa en us-east-1
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
