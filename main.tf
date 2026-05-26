@@ -123,7 +123,7 @@ module "aurora_cluster" {
 
   name           = "bite-db-cluster"
   engine         = "aurora-postgresql"
-  engine_version = "16.2" # <-- Versión LTS plenamente soportada y activa en us-east-1
+  engine_version = "16.8" # <-- Versión LTS plenamente soportada y activa en us-east-1
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
@@ -184,43 +184,52 @@ resource "aws_ecs_cluster" "bite_cluster" {
   name = "bite-ecs-cluster"
 }
 
-# Microservicio 1: Django Core con su contenedor definido
-module "ecs_ms1_django" {
-  source  = "terraform-aws-modules/ecs/aws//modules/service"
-  version = "7.5.0"
+# 1. Definición de la Tarea nativa de AWS para asegurar el mapeo del puerto 8000
+resource "aws_ecs_task_definition" "ms1_task" {
+  family                   = "ms1-django-core"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "1024"
+  memory                   = "2048"
+  execution_role_arn       = "arn:aws:iam::108618334241:role/ecsTaskExecutionRole" # Ajusta si usas otro rol
 
-  name        = "ms1-django-core"
-  cluster_arn = aws_ecs_cluster.bite_cluster.arn
-  cpu         = 1024
-  memory      = 2048
-  subnet_ids  = module.vpc.private_subnets
-
-  # UNIFICACIÓN DE LLAVES: django-core es la llave del objeto
-  container_definitions = {
-    "django-core" = { 
-      image = "108618334241.dkr.ecr.us-east-1.amazonaws.com/bite-ms1-django:latest"
-      cpu   = 1024
-      memory = 2048
-      
-      port_mappings = [
+  container_definitions = jsonencode([
+    {
+      name      = "django-core"
+      image     = "108618334241.dkr.ecr.us-east-1.amazonaws.com/bite-ms1-django:latest"
+      essential = true
+      portMappings = [
         {
-          name          = "django-core"
-          container_port = 8000
-          host_port      = 8000
-          protocol       = "tcp"
+          containerPort = 8000
+          hostPort      = 8000
+          protocol      = "tcp"
         }
       ]
     }
+  ])
+}
+
+# 2. Servicio nativo de ECS - Conectividad directa e inmune a errores de módulos
+resource "aws_ecs_service" "ecs_ms1_django_native" {
+  name            = "ms1-django-core-service"
+  cluster         = aws_ecs_cluster.bite_cluster.id
+  task_definition = aws_ecs_task_definition.ms1_task.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = module.vpc.private_subnets
+    security_groups  = [aws_security_group.alb_sg.id] # Reemplaza por tu sg de ECS si es diferente
+    assign_public_ip = false
   }
 
-  load_balancer = {
-    django_service = {
-      target_group_arn = aws_lb_target_group.ms1_tg.arn
-      container_name   = "django-core" # <-- DEBE SER IDÉNTICO A LA LLAVE DE ARRIBA
-      container_port   = 8000
-    }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.ms1_tg.arn
+    container_name   = "django-core" # Coincide exactamente con el JSON de arriba
+    container_port   = 8000
   }
 }
+
 
 # Microservicio 4: Celery Worker con su contenedor definido
 module "ecs_ms4_worker" {
