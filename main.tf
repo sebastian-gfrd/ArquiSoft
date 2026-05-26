@@ -132,10 +132,10 @@ module "aurora_cluster" {
   engine         = "aurora-postgresql"
   engine_version = "16.8" 
 
-  # SINTAXIS MODERNA COMPATIBLE CON LA V10.X:
-  username                    = "bite_admin"        # <-- Cambiado de master_username a username
-  password                    = "BitePassword2026!" # <-- Cambiado de master_password a password
-  manage_master_user_password = false                # <-- Desactivar Secrets Manager para usar la clave de arriba
+  # CONFIGURACIÓN EXACTA BASADA EN LA V10.2.0 DEL REGISTRY:
+  master_username             = "bite_admin"          # <-- Nombre correcto según los inputs del módulo
+  master_password             = "BitePassword2026!"   # <-- Parámetro correcto según los inputs del módulo
+  manage_master_user_password = false                 # <-- CRÍTICO: Desactiva Secrets Manager para evitar conflictos
 
   instances = {
     writer = { instance_class = "db.r6g.large" }
