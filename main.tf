@@ -29,6 +29,13 @@ module "vpc" {
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24"] # Persistencia y Cómputo (Fargate/Lambda)
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"] # Application Load Balancer
 
+  # CORRECCIÓN INTEGRAL DE RED:
+  # 1. Definimos el direccionamiento para las subredes de la BD (Capa aislada)
+  database_subnets = ["10.0.201.0/24", "10.0.202.0/24"] 
+  
+  # 2. Forzamos al módulo a crear físicamente el DB Subnet Group en AWS
+  create_database_subnet_group = true 
+
   enable_nat_gateway = true # Permite a las subredes privadas salir a internet (AWS APIs)
 }
 
