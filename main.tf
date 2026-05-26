@@ -134,7 +134,7 @@ module "aurora_cluster" {
 
   # CONFIGURACIÓN EXACTA BASADA EN LA V10.2.0 DEL REGISTRY:
   master_username             = "bite_admin"          # <-- Nombre correcto según los inputs del módulo
-  master_password             = "BitePassword2026!"   # <-- Parámetro correcto según los inputs del módulo
+  master_password_wo             = "BitePassword2026!"   # <-- Parámetro correcto según los inputs del módulo
   manage_master_user_password = false                 # <-- CRÍTICO: Desactiva Secrets Manager para evitar conflictos
 
   instances = {
