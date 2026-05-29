@@ -1,25 +1,20 @@
-"""
-URL configuration for App_Web project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
-from django.http import HttpResponse
+from . import views # Ajusta según tus vistas
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
-    path('', include('core.urls')),
+    # Envolvemos todo dentro del prefijo /auth/ para que coincida con el ALB
+    path('auth/', include([
+        path('admin/', admin.site.urls),
+        path('health/', views.health, name='health'),
+        path('login/', views.login, name='login'),
+        path('callback/', views.callback, name='callback'),
+        path('logout/', views.logout, name='logout'),
+        
+        # Tus APIs de tenants y proyectos
+        path('api/v1/tenants/', views.TenantListCreate.as_view(), name='tenant-list-create'),
+        path('api/v1/tenants/<int:pk>/', views.TenantDetail.as_view(), name='tenant-detail'),
+        path('api/v1/projects/', views.ProjectListCreate.as_view(), name='project-list-create'),
+        path('api/v1/projects/<int:pk>/', views.ProjectDetail.as_view(), name='project-detail'),
+    ])),
 ]
