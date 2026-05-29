@@ -28,7 +28,7 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", default=_DEFAULT_SECRET)
 # IMPORTANTE: DEBUG debe ser False en producción (AWS)
 DEBUG = env("DJANGO_DEBUG")
 
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
